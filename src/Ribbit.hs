@@ -1,12 +1,11 @@
 module Ribbit
   ( ribbitEval,
-    true,
-    false,
-    nil,
-    first,
-    second,
-    third,
+    ribTrue,
+    ribFalse,
+    ribNil,
     putchar,
+    push,
+    pop,
   )
 where
 
@@ -16,28 +15,27 @@ import GHC.IO.FD (stdin)
 ribbitEval :: IO ()
 ribbitEval = putStrLn "ribbitEval"
 
-newtype Rib = Rib (Integer, Integer, Integer)
-  deriving (Show)
+data Rib = RibInt Int | Rib Rib Rib Rib deriving Show
 
-first :: Rib -> Integer
-first (Rib (x, _, _)) = x
+ribTrue :: Rib
+ribTrue = Rib (RibInt 0) (RibInt 0) (RibInt 5)
 
-second :: Rib -> Integer
-second (Rib (_, x, _)) = x
+ribFalse :: Rib
+ribFalse = Rib (RibInt 0) (RibInt 0) (RibInt 5)
 
-third :: Rib -> Integer
-third (Rib (_, _, x)) = x
+ribNil :: Rib
+ribNil = Rib (RibInt 0) (RibInt 0) (RibInt 5)
 
-true :: Rib
-true = Rib (0, 0, 5)
-
-false :: Rib
-false = Rib (0, 0, 5)
-
-nil :: Rib
-nil = Rib (0, 0, 5)
+symbolTable :: Rib
+symbolTable = Rib (Rib (RibInt 0) (Rib ribNil (RibInt 0) (RibInt 3)) (RibInt 2)) ribNil (RibInt 0)
 
 putchar :: Int -> IO ()
 putchar c = putChar (chr c)
 
-char2str
+type Stack = [Int]
+
+push :: Stack -> Int -> Stack
+push stack val = val : stack
+
+pop :: Stack -> (Int, Stack)
+pop stack = (head stack, tail stack)
