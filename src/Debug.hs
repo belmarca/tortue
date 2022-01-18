@@ -2,19 +2,18 @@
 {-# LANGUAGE LambdaCase, OverloadedStrings #-}
 module Debug where
 
-import Data.Aeson ((.=))
-import Data.Char (ord)
+import Data.Aeson ( KeyValue((.=)) )
+import Data.Char ( chr, ord )
 import Data.IORef ( IORef )
 import Data.Scientific ( floatingOrInteger )
-import GHC.Char ( chr )
 import GHC.IO ( unsafePerformIO )
-import Utils ( MonadIO, newRef, readRef )
-import VM ( toRibSymbol, toRibString, toRibList, ribNil, Rib(..) )
-
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as Vector
+
+import Utils
+import VM
 
 -- Debugging functions
 
