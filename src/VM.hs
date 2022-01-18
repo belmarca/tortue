@@ -254,6 +254,7 @@ primitives =
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ RibInt (div r1 r2))                     -- quotient
   , liftIO getChar >>= push . RibInt . ord                                            -- getChar
   , prim1 (\r@(RibInt v) -> liftIO (putChar (chr v)) >> pure r)                       -- putChar
+  , prim1 (\c -> push c >> pure c)  -- Duplicate top element. Not a regular RVM primitive, but useful in Repl.hs
   ]
 
 -- Initializing symbol table
