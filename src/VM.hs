@@ -17,6 +17,7 @@ import Data.IORef
 import GHC.IO (unsafePerformIO)
 
 import Utils
+import Data.Foldable
 
 -- TODO: Unbox me
 input :: Array Int Word8
@@ -24,6 +25,9 @@ input = listArray (0, length inputStr - 1) $ fmap (toEnum . ord) inputStr
 
 inputStr :: String
 inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that prints HELLO!
+
+symbolTableStr, instructionsStr :: String
+(symbolTableStr, instructionsStr) = drop 1 <$> span (/= ';') inputStr
 
 -- Reading input
 
@@ -81,6 +85,9 @@ read3 (RibObj _ _ v) = readRef v
 mkPair :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
 mkPair = mkObj (0 :: Int)
 
+cons :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
+cons = mkPair
+
 mkProc :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
 mkProc = mkObj (1 :: Int)
 
@@ -107,6 +114,19 @@ ribTrue = unsafePerformIO mkSVal
 ribNil :: Rib
 ribNil = ribTrue
 
+-- Fonctions de conversion Haskell -> Rib
+
+toRibList :: (RibRef a, MonadIO m) => [a] -> m Rib
+toRibList = foldrM cons ribNil
+
+toRibString :: MonadIO m => String -> m Rib
+toRibString chars = do
+  ribLst <- toRibList $ fmap fromEnum chars
+  mkStr ribLst (length chars)
+
+toRibSymbol :: MonadIO m => String -> m Rib
+toRibSymbol chars = mkSymb (RibInt 0) =<< toRibString chars
+
 -- VM environment
 
 data State = State
@@ -121,7 +141,7 @@ push v = do
   -- Get stack reference
   stackPtr <- fmap stackRef get
   -- Cons v to stack
-  newStack <- mkPair v stackPtr
+  newStack <- cons v stackPtr
   -- Update stack reference to point to new stack
   liftIO $ writeIORef stackPtr newStack
 
@@ -160,7 +180,7 @@ prim2 f = do
   push x
 
 -- Note: Contrairement à prim1 et prim2, f prend des IORef car la seule
--- utilisation de prim3 n'a pas besoin de lire la référence.
+-- utilisation de prim3 n'a pas besoin de lire les références.
 prim3 :: (IORef Rib -> IORef Rib -> IORef Rib -> Rib) -> Fun
 prim3 f = do
   v1 <- popFast
@@ -173,29 +193,27 @@ primitives :: [Fun]
 primitives =
   [ prim3 RibObj                                                                      -- rib object constructor
   , prim1 pure                                                                        -- id
-  , void pop                                                                    -- take 2 TOS, keep first
+  , void pop                                                                          -- take 2 TOS, keep first
   , prim2 (const pure)                                                                -- take 2 TOS, keep second
   , do
       RibObj v1 _ _ <- pop
       stackPtr <- stackRef <$> get
       mkProc v1 stackPtr >>= push                                                     -- close
   , prim1 (pure . (\case RibInt _ -> ribFalse; _ -> ribTrue))                         -- rib?
-  , prim1 read1                                                                          -- field0
-  , prim1 read2                                                                          -- field1
-  , prim1 read3                                                                          -- field2
-  , prim2 (\(RibObj r _ _) v -> writeRef r v >> pure v)                             -- field0-set!
-  , prim2 (\(RibObj _ r _) v -> writeRef r v >> pure v)                             -- field1-set!
-  , prim2 (\(RibObj _ _ r) v -> writeRef r v >> pure v)                             -- field2-set!
+  , prim1 read1                                                                       -- field0
+  , prim1 read2                                                                       -- field1
+  , prim1 read3                                                                       -- field2
+  , prim2 (\(RibObj r _ _) v -> writeRef r v >> pure v)                               -- field0-set!
+  , prim2 (\(RibObj _ r _) v -> writeRef r v >> pure v)                               -- field1-set!
+  , prim2 (\(RibObj _ _ r) v -> writeRef r v >> pure v)                               -- field2-set!
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ if r1 < r2 then ribTrue else ribFalse)  -- <
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 + r2))                       -- add
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 - r2))                       -- sub
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 * r2))                       -- mult
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ RibInt (div r1 r2))                     -- quotient
-  , liftIO getChar >>= push . RibInt . ord                                   -- getChar
-  , prim1 (\r@(RibInt v) -> liftIO (putChar (chr v)) >> pure r)                                -- putChar
+  , liftIO getChar >>= push . RibInt . ord                                            -- getChar
+  , prim1 (\r@(RibInt v) -> liftIO (putChar (chr v)) >> pure r)                       -- putChar
   ]
-
-{-
 
 -- Initializing symbol table
 
@@ -207,11 +225,11 @@ initialSymbolTable = do
         if n >= 0
           then do
             -- Empty string
-            str <- mkObj 3 ribNil (RibInt 0)
+            str <- mkStr ribNil (RibInt 0)
             -- Symbol with 0 as value
-            sym <- mkObj 2 (RibInt 0) str
+            sym <- mkSymb (RibInt 0) str
             -- Append the symbol to the symbol table
-            s' <- mkObj 0 sym s
+            s' <- cons sym s
             go1 (n-1) s'
           else pure s
 
@@ -221,11 +239,11 @@ initialSymbolTable = do
         let c = getByte pos
             appendAcc = do
               -- String from acc
-              str <- mkObj 3 acc (RibInt n)
+              str <- mkStr acc (RibInt n)
               -- Symbol with 0 as value
-              sym <- mkObj 2 (RibInt 0) str
+              sym <- mkSymb (RibInt 0) str
               -- Append the symbol to the symbol table
-              mkObj 0 sym s
+              cons sym s
         if c == 44
           -- 44 = ',' end of element
           then appendAcc >>= go2 (pos + 1) 0 ribNil
@@ -233,11 +251,26 @@ initialSymbolTable = do
           else if c == 59 then (pos + 1,) <$> appendAcc
           else do
             -- Append character to acc
-            acc' <- mkObj 0 (RibInt $ fromEnum c) acc
+            acc' <- cons (RibInt $ fromEnum c) acc
             go2 (pos + 1) (n+1) acc' s
 
   let (i, i') = getInt 0 0
   go1 i ribNil >>= go2 i' 0 ribNil
+
+-- Définition alternative de initialSymbolTable plus idiomatique.
+initialSymbolTable' :: IO Rib
+initialSymbolTable' = do
+  let symbolStrings = splitOnCommas symbolTableStr
+  -- Pour chaque symbole, on encode son string en Rib
+  symbolStringRibs <- mapM toRibSymbol symbolStrings
+  -- On encode la liste
+  toRibList symbolStringRibs
+  where
+    -- Brise le string sur les virgules
+    splitOnCommas [] = []
+    splitOnCommas xs = let (sym, rest) = span (/= ',') xs in sym : splitOnCommas (drop 1 rest)
+
+{-
 
 -- Decoding RVM instructions
 
