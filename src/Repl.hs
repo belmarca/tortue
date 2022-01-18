@@ -8,6 +8,7 @@ import Control.Monad (forM, forM_, replicateM, replicateM_)
 import Data.Char (chr)
 
 import Debug
+import Rib
 import Utils
 import VM
 
@@ -205,3 +206,10 @@ run = void (runWithState prog)
 runVerbose :: IO ()
 runVerbose = bracket createState printState (runReaderIO prog)
   -- runWithState prog >>= printState
+
+printState :: State -> IO ()
+printState st = do
+  putStrLn "Stack:"
+  printRibList =<< readRef (stackRef st)
+  putStrLn "Symbol table:"
+  printRibList =<< readRef (symbolTableRef st)

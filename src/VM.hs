@@ -11,6 +11,8 @@ import GHC.Arr ( Array, listArray, unsafeAt )
 import GHC.IO (unsafePerformIO)
 
 import Utils
+import Rib
+import GHC.Stack (HasCallStack)
 
 -- TODO: Unbox me
 input :: Array Int Word8
@@ -84,87 +86,6 @@ readInt (x:xs) n =
       c = if v < 0 then error "Bad code, less than 35" else v -- python returns 57 instead of error
       n' = n * 46
   in if c < 46 then (xs, n' + v) else readInt xs (n' + v - 46)
-
--- Rib Objects
-
-data Rib = RibInt Int | RibObj (IORef Rib) (IORef Rib) (IORef Rib)
-
--- Typeclass permettant l'utilisation de mkObj sans avoir à toujours créer des
--- IORef manuellement.
--- toRibRef permet la conversion d'une valeur de type a en IORef Rib par une action IO.
-class RibRef a where
-  toRibRef :: MonadIO m => a -> m (IORef Rib)
-
--- Rien à faire, on a déjà un IORef Rib
-instance RibRef (IORef Rib) where
-  toRibRef = pure
-
--- On crée une référence pour le Rib
-instance RibRef Rib where
-  toRibRef = newRef
-
--- On wrap le Int dans RibInt et on crée une référence
-instance RibRef Int where
-  toRibRef = newRef . RibInt
-
--- On convertit le char en RibInt et on crée une référence
-instance RibRef Char where
-  toRibRef = newRef . RibInt . ord
-
-mkObj :: (RibRef a, RibRef b, RibRef c, MonadIO m) => a -> b -> c -> m Rib
-mkObj tag r1 r2 = RibObj <$> toRibRef r1 <*> toRibRef r2 <*> toRibRef tag
-
-read1, read2, read3 :: MonadIO m => Rib -> m Rib
-read1 (RibObj v _ _) = readRef v
-read2 (RibObj _ v _) = readRef v
-read3 (RibObj _ _ v) = readRef v
-
--- write1, write2, write3 :: MonadIO m => IORef Rib -> Rib -> m ()
-
-mkPair :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
-mkPair = mkObj (0 :: Int)
-
-cons :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
-cons = mkPair
-
-mkProc :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
-mkProc = mkObj (1 :: Int)
-
-mkSymb :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
-mkSymb = mkObj (2 :: Int)
-
-mkStr :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
-mkStr = mkObj (3 :: Int)
-
-mkVect :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
-mkVect = mkObj (4 :: Int)
-
-mkSVal :: MonadIO m => m Rib
-mkSVal = mkObj (5 :: Int) (RibInt 0) (RibInt 0) -- Don't care about zeroes
-
-{-# NOINLINE ribFalse #-}
-ribFalse :: Rib
-ribFalse = unsafePerformIO mkSVal
-
-{-# NOINLINE ribTrue #-}
-ribTrue :: Rib
-ribTrue = unsafePerformIO mkSVal
-
-ribNil :: Rib
-ribNil = ribTrue
-
--- Fonctions de conversion Haskell -> Rib
-
-toRibList :: (RibRef a, MonadIO m) => [a] -> m Rib
-toRibList = foldrM cons ribNil
-
-toRibString :: MonadIO m => String -> m Rib
-toRibString chars = do
-  ribLst <- toRibList chars
-  mkStr ribLst (length chars)
-
-toRibSymbol :: MonadIO m => String -> m Rib
-toRibSymbol chars = mkSymb (RibInt 0) =<< toRibString chars
 
 -- VM environment
 
@@ -241,12 +162,12 @@ primitives =
       stackPtr <- stackRef <$> get
       mkProc v1 stackPtr >>= push                                                     -- close
   , prim1 (pure . (\case RibInt _ -> ribFalse; _ -> ribTrue))                         -- rib?
-  , prim1 read1                                                                       -- field0
-  , prim1 read2                                                                       -- field1
-  , prim1 read3                                                                       -- field2
-  , prim2 (\(RibObj r _ _) v -> writeRef r v >> pure v)                               -- field0-set!
-  , prim2 (\(RibObj _ r _) v -> writeRef r v >> pure v)                               -- field1-set!
-  , prim2 (\(RibObj _ _ r) v -> writeRef r v >> pure v)                               -- field2-set!
+  , prim1 read1                                                                       -- field0 -- 6
+  , prim1 read2                                                                       -- field1 -- 7
+  , prim1 read3                                                                       -- field2 -- 8
+  , prim2 (\r v -> write1 r v >> pure v)                                              -- field0-set! -- 9
+  , prim2 (\r v -> write2 r v >> pure v)                                              -- field1-set! -- 10
+  , prim2 (\r v -> write3 r v >> pure v)                                              -- field2-set! -- 11
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ if r1 < r2 then ribTrue else ribFalse)  -- <
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 + r2))                       -- add
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 - r2))                       -- sub

@@ -14,16 +14,9 @@ import qualified Data.HashMap.Strict as Map
 import qualified Data.Vector as Vector
 
 import Utils
-import VM
+import Rib
 
 -- Debugging functions
-
-printState :: State -> IO ()
-printState st = do
-  putStrLn "Stack:"
-  printRibList =<< readRef (stackRef st)
-  putStrLn "Symbol table:"
-  printRibList =<< readRef (symbolTableRef st)
 
 printRib :: Rib -> IO ()
 printRib r = BS.putStrLn . Aeson.encodePretty =<< ribDataToJson r

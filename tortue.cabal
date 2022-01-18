@@ -27,6 +27,7 @@ library
   exposed-modules:
       Debug
       Repl
+      Rib
       Ribbit
       Utils
       VM
