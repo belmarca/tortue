@@ -68,7 +68,7 @@ data Rib = RibInt Int | RibObj (IORef Rib) (IORef Rib) (IORef Rib)
 -- IORef manuellement.
 -- toRibRef permet la conversion d'une valeur de type a en IORef Rib par une action IO.
 class RibRef a where
-  toRibRef :: a -> IO (IORef Rib)
+  toRibRef :: MonadIO m => a -> m (IORef Rib)
 
 -- Rien à faire, on a déjà un IORef Rib
 instance RibRef (IORef Rib) where
@@ -87,7 +87,7 @@ instance RibRef Char where
   toRibRef = newRef . RibInt . ord
 
 mkObj :: (RibRef a, RibRef b, RibRef c, MonadIO m) => a -> b -> c -> m Rib
-mkObj n r2 r3 = RibObj <$> liftIO (toRibRef r2) <*> liftIO (toRibRef r3) <*> liftIO (toRibRef n)
+mkObj n r2 r3 = RibObj <$> toRibRef r2 <*> toRibRef r3 <*> toRibRef n
 
 read1, read2, read3 :: MonadIO m => Rib -> m Rib
 read1 (RibObj v _ _) = readRef v
@@ -150,14 +150,14 @@ data State = State
 
 type Fun = ReaderIO State ()
 
-push :: Rib -> ReaderIO State ()
+push :: RibRef a => a -> ReaderIO State ()
 push v = do
   -- Get stack reference
   stackPtr <- fmap stackRef get
   -- Cons v to stack
   newStack <- cons v stackPtr
   -- Update stack reference to point to new stack
-  liftIO $ writeRef stackPtr newStack
+  writeRef stackPtr newStack
 
 pop :: ReaderIO State Rib
 pop = do
