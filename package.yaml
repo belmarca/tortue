@@ -27,6 +27,7 @@ dependencies:
 - bytestring
 - scientific
 - text
+- unordered-containers
 - vector
 
 library:

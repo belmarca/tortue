@@ -1,15 +1,16 @@
-{-# LANGUAGE ScopedTypeVariables, RankNTypes #-}
-{-# LANGUAGE LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings, ScopedTypeVariables #-}
 module Debug where
 
 import Data.Aeson ( KeyValue((.=)) )
 import Data.Char ( chr, ord )
+import Data.Text ( Text )
 import Data.IORef ( IORef )
 import Data.Scientific ( floatingOrInteger )
 import GHC.IO ( unsafePerformIO )
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.ByteString.Lazy as BS
+import qualified Data.HashMap.Strict as Map
 import qualified Data.Vector as Vector
 
 import Utils
@@ -20,12 +21,16 @@ import VM
 printState :: State -> IO ()
 printState st = do
   putStrLn "Stack:"
-  printRib =<< readRef (stackRef st)
+  printRibList =<< readRef (stackRef st)
   putStrLn "Symbol table:"
-  printRib =<< readRef (symbolTableRef st)
+  printRibList =<< readRef (symbolTableRef st)
 
 printRib :: Rib -> IO ()
 printRib r = BS.putStrLn . Aeson.encodePretty =<< ribDataToJson r
+
+printRibList :: Rib -> IO ()
+printRibList (RibObj car cdr _) = BS.putStrLn . Aeson.encodePretty =<< decodeList car cdr
+printRibList r@(RibInt n) = printRib r
 
 {-# NOINLINE testRibLst #-}
 testRibLst :: Rib
@@ -85,7 +90,7 @@ ribDataToJson (RibObj v1 v2 tag) = do
     RibInt 2 -> do
       val  <- ribDataToJson =<< readRef v1
       name <- ribDataToJson =<< readRef v2
-      pure $ Aeson.object ["symbol" .= name, "value" .= val]
+      pure $ addField name "_value" val
 
     -- String
     RibInt 3 -> do
@@ -98,69 +103,73 @@ ribDataToJson (RibObj v1 v2 tag) = do
       pure $ Aeson.object ["vector" .= lst, "length" .= len]
 
     -- Special value
-    RibInt 5 -> pure $ Aeson.String "()"
+    RibInt 5 -> pure $ Aeson.String "#()#"
 
     -- Unknown object
-    -- RibObj ir ir' ir2 ->
     _ -> error "Unknown object"
+
   where
-    decodeList :: IORef Rib -> IORef Rib -> m [Aeson.Value]
-    decodeList car cdr = do
-      carValue  <- ribDataToJson =<< readRef car
-      cdrValue  <- readRef cdr
-      cdrValues <- case cdrValue of
-                    RibInt n -> do
-                      -- Unexpected RibInt, improper list?
-                      v <- ribDataToJson cdrValue
-                      pure [v]
+    -- FIXME: Partial function but works for now
+    addField :: Aeson.Value -> Text -> Aeson.Value -> Aeson.Value
+    addField (Aeson.Object obj) key val = Aeson.Object $ Map.insert key val obj
 
-                    RibObj cadr cddr cdrTag -> readRef cdrTag >>= \case
-                      RibInt 5 -> pure [] -- Nil!
-                      RibInt 0 -> decodeList cadr cddr -- -- Continuing
-                      RibInt n -> error $ "Invalid Rib list. Unexpected tag: " <> show n
-                      RibObj {} -> error "Invalid Rib list. Tag can't be an object."
-      pure $ carValue : cdrValues
+decodeList :: MonadIO m => IORef Rib -> IORef Rib -> m [Aeson.Value]
+decodeList car cdr = do
+  carValue  <- ribDataToJson =<< readRef car
+  cdrValue  <- readRef cdr
+  cdrValues <- case cdrValue of
+                RibInt n -> do
+                  -- Unexpected RibInt, improper list?
+                  v <- ribDataToJson cdrValue
+                  pure [v]
 
-    decodeVector :: IORef Rib -> IORef Rib -> m (Int, [Aeson.Value]) -- Length and elements
-    decodeVector elemsRef lengthRef = do
-      len <- readRef lengthRef
-      -- Length est bien un entier?
-      case len of
-        RibInt n -> do
-          elems <- readRef elemsRef
-          -- Les éléments sont bien un objet?
-          case elems of
-            RibInt i -> error $ "Vector elems is not a list. Tag: " <> show i
-            RibObj v1 v2 elemsTag -> do
-              lstTag <- readRef elemsTag
-              -- Cet objet est bien une pair ou la liste vide?
-              case lstTag of
-                -- Pair
-                RibInt 0 -> do
-                  lst <- decodeList v1 v2
-                  -- On retourne donc la longueur et les éléments
-                  pure (n, lst)
+                RibObj cadr cddr cdrTag -> readRef cdrTag >>= \case
+                  RibInt 5 -> pure [] -- Nil!
+                  RibInt 0 -> decodeList cadr cddr -- -- Continuing
+                  RibInt n -> error $ "Invalid Rib list. Unexpected tag: " <> show n
+                  RibObj {} -> error "Invalid Rib list. Tag can't be an object."
+  pure $ carValue : cdrValues
 
-                -- Liste vide
-                RibInt 5 -> do
-                  pure (0, [])
+decodeVector :: MonadIO m => IORef Rib -> IORef Rib -> m (Int, [Aeson.Value]) -- Length and elements
+decodeVector elemsRef lengthRef = do
+  len <- readRef lengthRef
+  -- Length est bien un entier?
+  case len of
+    RibInt n -> do
+      elems <- readRef elemsRef
+      -- Les éléments sont bien un objet?
+      case elems of
+        RibInt i -> error $ "Vector elems is not a list. Tag: " <> show i
+        RibObj v1 v2 elemsTag -> do
+          lstTag <- readRef elemsTag
+          -- Cet objet est bien une pair ou la liste vide?
+          case lstTag of
+            -- Pair
+            RibInt 0 -> do
+              lst <- decodeList v1 v2
+              -- On retourne donc la longueur et les éléments
+              pure (n, lst)
 
-                RibInt n -> error $ "Vector elems is not a list. Tag: " <> show n
-                RibObj {} -> error "Vector elems is not a list. Its tag is an object."
+            -- Liste vide
+            RibInt 5 -> do
+              pure (0, [])
 
-        RibObj {} -> error "Vector length is not an int"
+            RibInt n -> error $ "Vector elems is not a list. Tag: " <> show n
+            RibObj {} -> error "Vector elems is not a list. Its tag is an object."
 
-    decodeString :: IORef Rib -> IORef Rib -> m (Int, String)
-    decodeString elemsRef lengthRef = do
-      (len, vals) <- decodeVector elemsRef lengthRef
-      let toChar = \case
-            Aeson.Number n ->
-              case floatingOrInteger n of
-                Left _ -> error "String cannot contain float."
-                Right c -> pure $ chr c
-            _ -> error "String contains non-characters."
-      chars <- mapM toChar vals
-      pure (len, chars)
+    RibObj {} -> error "Vector length is not an int"
+
+decodeString :: MonadIO m => IORef Rib -> IORef Rib -> m (Int, String)
+decodeString elemsRef lengthRef = do
+  (len, vals) <- decodeVector elemsRef lengthRef
+  let toChar = \case
+        Aeson.Number n ->
+          case floatingOrInteger n of
+            Left _ -> error "String cannot contain float."
+            Right c -> pure $ chr c
+        _ -> error "String contains non-characters."
+  chars <- mapM toChar vals
+  pure (len, chars)
 
     -- TODO
     -- decodeProc :: IORef Rib -> IORef Rib -> m (Int, Aeson.Value)
