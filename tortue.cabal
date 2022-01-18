@@ -26,6 +26,8 @@ source-repository head
 library
   exposed-modules:
       Ribbit
+      Utils
+      VM
   other-modules:
       Paths_tortue
   hs-source-dirs:
