@@ -1,5 +1,6 @@
 module Utils where
-import Data.IORef
+
+import Data.IORef ( IORef, newIORef, readIORef, writeIORef )
 
 -- ReaderIO permet de modéliser le passage de paramètre constant, similaire au
 -- dependency injection.
@@ -18,7 +19,6 @@ import Data.IORef
 --        b. ReaderIO (\r -> do print r; getInt):
 --          Affiche le paramètre, retourne un int obtenu en faisant une opération IO.
 newtype ReaderIO r a = ReaderIO { runReaderIO :: r -> IO a }
-  -- deriving newtype (Functor, Monad, Applicative)
 
 -- Cette action permet d'obtenir le paramètre.
 get :: ReaderIO r r
