@@ -17,8 +17,15 @@ import VM
 
 -- Debugging functions
 
+printState :: State -> IO ()
+printState st = do
+  putStrLn "Stack:"
+  printRib =<< readRef (stackRef st)
+  putStrLn "Symbol table:"
+  printRib =<< readRef (symbolTableRef st)
+
 printRib :: Rib -> IO ()
-printRib r = BS.putStr . Aeson.encodePretty =<< ribDataToJson r
+printRib r = BS.putStrLn . Aeson.encodePretty =<< ribDataToJson r
 
 {-# NOINLINE testRibLst #-}
 testRibLst :: Rib
