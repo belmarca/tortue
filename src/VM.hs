@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, MultiParamTypeClasses, TypeFamilies, TypeApplications #-}
+{-# LANGUAGE LambdaCase, MultiParamTypeClasses, TypeFamilies #-}
 {-# LANGUAGE Strict #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -9,15 +9,14 @@
 {-# LANGUAGE DerivingVia #-}
 module VM where
 
-import Data.Char
-import GHC.Arr
-import Data.Word
-import Data.IORef
--- import Control.Monad.IO.Class
+import Data.Char ( ord, chr )
+import GHC.Arr ( Array, listArray, unsafeAt )
+import Data.Word ( Word8 )
+import Data.IORef ( writeIORef, newIORef, IORef )
 import GHC.IO (unsafePerformIO)
 
 import Utils
-import Data.Foldable
+import Data.Foldable ( foldrM )
 
 -- TODO: Unbox me
 input :: Array Int Word8
@@ -26,8 +25,11 @@ input = listArray (0, length inputStr - 1) $ fmap (toEnum . ord) inputStr
 inputStr :: String
 inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that prints HELLO!
 
+emptySymbolsCount :: Int
 symbolTableStr, instructionsStr :: String
-(symbolTableStr, instructionsStr) = drop 1 <$> span (/= ';') inputStr
+((symbolTableStr, emptySymbolsCount), instructionsStr) =
+  let (start, end) = span (/= ';') inputStr
+  in (readInt start 0, drop 1 end)
 
 -- Reading input
 
@@ -49,6 +51,14 @@ getInt n pos =
   let x = fromEnum $ getCode pos
       n' = n * 46
   in if x < 46 then (n' + x, pos + 1) else getInt (n' + x - 46) (pos + 1)
+
+readInt :: String -> Int -> (String, Int)
+readInt [] n = ([], n)
+readInt (x:xs) n =
+  let v = ord x - 35
+      c = if v < 0 then error "Bad code, less than 35" else v -- python returns 57 instead of error
+      n' = n * 46
+  in if c < 46 then (xs, n' + v) else readInt xs (n' + v - 46)
 
 -- Rib Objects
 
@@ -261,8 +271,10 @@ initialSymbolTable = do
 initialSymbolTable' :: IO Rib
 initialSymbolTable' = do
   let symbolStrings = splitOnCommas symbolTableStr
+      -- On ajoute les symboles sans string
+      symbolStringsWithEmpty = replicate emptySymbolsCount "" <> symbolStrings
   -- Pour chaque symbole, on encode son string en Rib
-  symbolStringRibs <- mapM toRibSymbol symbolStrings
+  symbolStringRibs <- mapM toRibSymbol symbolStringsWithEmpty
   -- On encode la liste
   toRibList symbolStringRibs
   where
