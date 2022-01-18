@@ -83,7 +83,7 @@ readInt :: String -> Int -> (String, Int)
 readInt [] n = ([], n)
 readInt (x:xs) n =
   let v = ord x - 35
-      c = if v < 0 then error "Bad code, less than 35" else v -- python returns 57 instead of error
+      c = if v < 0 then 57 else v -- error "Bad code, less than 35" else v -- python returns 57 instead of error
       n' = n * 46
   in if c < 46 then (xs, n' + v) else readInt xs (n' + v - 46)
 
@@ -235,65 +235,71 @@ initialSymbolTable' = do
     splitOnCommas [] = []
     splitOnCommas xs = let (sym, rest) = span (/= ',') xs in reverse sym : splitOnCommas (drop 1 rest)
 
-{-
-
 -- Decoding RVM instructions
 
-symbolRef :: Int -> Rib -> IO Rib
-symbolRef n s = do
-  RibObj v1 _ _ <- listTail n s
-  readIORef v1
+symbolRef :: Int -> ReaderIO State Rib
+symbolRef n = do
+  symbolTable <- symbolTableRef <$> get
+  read1 =<< listTail n =<< readRef symbolTable
 
-listTail :: Int -> Rib -> IO Rib
+listTail :: MonadIO m => Int -> Rib -> m Rib
 listTail = \case 0 -> pure; n -> \r -> read2 r >>= listTail (n-1)
 
-decodeInstructions :: State -> Int -> IO (State, Rib)
-decodeInstructions st pos = do
-  let go st pos = do
-        -- First code tells us the
-        let c = getCode pos
-            (n, d, op) = go2 n op
-        (n, d, op, st) <-
-          if c > 90
-          then do
-            (st, RibInt n) <- pop st
-            pure (n, d, op, st)
-          else do
-            (st, op) <- if op == 0 then push st (RibInt 0) else pure (st)
-            (n, pos') <- if n == d
-                          then let (i,pos') = getInt 0 pos
-                            in pure (RibInt i, pos')
-                          else if n>=d
-                            then do
-                                let (i, pos') = getInt (n-d-1) pos
-                                n <- symbolRef i (symbolTable st)
-                                pure (n, pos')
-                          else if op < 3
-                            then do
-                              n <- symbolRef n (symbolTable st)
-                              pure (n, pos)
-                          else pure (RibInt n, pos)
-            n <- if 4 < op
-              then do
-                (st, a) <- pop st
-                b <- mkObj' n (RibInt 0) a
-                mkObj 1 b (RibInt 0)
-              else pure n
+decodeInstructions :: HasCallStack => ReaderIO State Rib
+decodeInstructions = do
+  stackPtr <- fmap stackRef get
+  let
+      go :: HasCallStack => String -> ReaderIO State Rib
+      go [] = pop
+      go (x:rest) = do
+        -- First code tells us the operand
+        let c = ord x - 35
+            code = if c < 0 then 57 else c
+            (n, d, op) = go2 code 0
+        if c > 90
+        then do
+          tos <- pop
+          stack <- readRef stackPtr
+          stack1 <- read1 stack
+          write1 stack =<< mkInstr op tos stack1
+          go rest
+        else do
+          op <- if op == 0
+                  then push (RibInt 0) >> pure (op + 1)
+                  else pure op
 
-            case stack st of
-              RibInt i -> undefined -- stop
-              RibObj v1 _ _ ->
-                readIORef v1 >>=
-                  mkObj' (RibInt $ min 4 op - 1) n >>=
-                    writeRef v1
+          (rest', i) <- if n == d
+                          then do
+                          -- get_int(0)
+                          let (rest', i) = readInt rest 0
+                          pure (rest', RibInt i)
+                        else if n >= d
+                          then do
+                            -- symbol_ref(get_int(n - d - 1))
+                            let (rest', i) = readInt rest (n - d - 1)
+                            n <- symbolRef i
+                            pure (rest', n)
+                        else if op < 3
+                          then do
+                            -- symbol_ref(n)
+                            n <- symbolRef n
+                            pure (rest, n)
+                        else pure (rest, RibInt n)
 
-            pure (n, d, op, st)
+          n <- if 4 < op
+            then do
+              tos <- pop
+              b <- mkInstr n (RibInt 0) tos
+              mkInstr b (RibInt 0) (RibInt 1)
+            else pure (RibInt n)
 
-
-        undefined
-
-        -- if n < op then
-        --   let n =
+          readRef stackPtr >>= \case
+            RibInt i -> read1 n >>= read3
+            RibObj v1 _ _ -> do
+              readRef v1 >>=
+                mkInstr (RibInt $ min 4 op - 1) n >>=
+                  writeRef v1
+              go rest'
 
         -- let RibObj v1 _ _ = stack st
         -- v <- readIORef v1
@@ -305,6 +311,4 @@ decodeInstructions st pos = do
         let d = [20,30,0,10,11,4] !! op
         in if n <= 2+d then (n, d, op) else go2 (n-d-3) (op+1)
 
-  undefined
-
--}
+  go instructionsStr

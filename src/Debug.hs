@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings, ScopedTypeVariables, TupleSections #-}
 module Debug where
 
 import Data.Aeson ( KeyValue((.=)) )
@@ -20,6 +20,9 @@ import Rib
 
 printRib :: Rib -> IO ()
 printRib r = BS.putStrLn . Aeson.encodePretty =<< ribDataToJson r
+
+printInstrRib :: Rib -> IO ()
+printInstrRib r = BS.putStrLn . Aeson.encodePretty =<< ribInstructionToJson r
 
 printRibList :: Rib -> IO ()
 printRibList (RibObj car cdr _) = BS.putStrLn . Aeson.encodePretty =<< decodeList car cdr
@@ -77,7 +80,9 @@ ribDataToJson (RibObj v1 v2 tag) = do
       pure $ Aeson.object ["list" .= lst]
 
     -- Procedure
-    RibInt 1 -> error "FIXME: Decode procedure"
+    RibInt 1 -> do
+      (arity, codeVals, env) <- decodeProc v1 v2
+      pure $ Aeson.object ["arity" .= arity, "env" .= env, "instructions" .= codeVals]
 
     -- Symbol
     RibInt 2 -> do
@@ -105,6 +110,49 @@ ribDataToJson (RibObj v1 v2 tag) = do
     -- FIXME: Partial function but works for now
     addField :: Aeson.Value -> Text -> Aeson.Value -> Aeson.Value
     addField (Aeson.Object obj) key val = Aeson.Object $ Map.insert key val obj
+
+ribInstructionToJson :: forall m. MonadIO m => Rib -> m [Aeson.Value]
+ribInstructionToJson (RibInt n) = pure [] -- pure [Aeson.Number (fromIntegral n)]
+ribInstructionToJson (RibObj tag v2 v3) = do
+  tag <- readRef tag
+  case tag of
+    RibInt 0 -> do
+      readRef v3 >>= \case
+        -- Jump
+        RibInt 0 -> pure $ [Aeson.String "jump"]
+
+        -- Call
+        v3' -> do
+          let instr = Aeson.String "call"
+          rest <- ribInstructionToJson v3'
+          pure $ instr : rest
+
+    -- Set
+    RibInt 1 -> do
+      let instr = Aeson.String "set"
+      rest <- readRef v3 >>= ribInstructionToJson
+      pure $ instr : rest
+
+    -- Get
+    RibInt 2 -> do
+      let instr = Aeson.String "get"
+      rest <- readRef v3 >>= ribInstructionToJson
+      pure $ instr : rest
+
+    -- Const
+    RibInt 3 -> do
+      obj <- readRef v2 >>= ribDataToJson
+      let instr = Aeson.object ["push" .= obj]
+      rest <- readRef v3 >>= ribInstructionToJson
+      pure $ instr : rest
+
+    -- If
+    RibInt 4 -> do
+      let instr = Aeson.String "if"
+      rest <- readRef v3 >>= ribInstructionToJson
+      pure $ instr : rest
+
+    _ -> error "Unknown instruction"
 
 decodeList :: MonadIO m => IORef Rib -> IORef Rib -> m [Aeson.Value]
 decodeList car cdr = do
@@ -138,14 +186,10 @@ decodeVector elemsRef lengthRef = do
           -- Cet objet est bien une pair ou la liste vide?
           case lstTag of
             -- Pair
-            RibInt 0 -> do
-              lst <- decodeList v1 v2
-              -- On retourne donc la longueur et les éléments
-              pure (n, lst)
+            RibInt 0 -> (n,) <$> decodeList v1 v2
 
             -- Liste vide
-            RibInt 5 -> do
-              pure (0, [])
+            RibInt 5 -> pure (0, [])
 
             RibInt n -> error $ "Vector elems is not a list. Tag: " <> show n
             RibObj {} -> error "Vector elems is not a list. Its tag is an object."
@@ -164,11 +208,27 @@ decodeString elemsRef lengthRef = do
   chars <- mapM toChar vals
   pure (len, chars)
 
-    -- TODO
-    -- decodeProc :: IORef Rib -> IORef Rib -> m (Int, Aeson.Value)
-    -- decodeProc codeRef envRef = do
-    --   readRef codeRef >>= \case
-    --     RibInt n -> error "Proc code is not an object."
-    --     RibObj arityRef v2 codeTag -> do
-    --       readRef arityRef >>= \case
-    --         RibInt arity -> undefined
+decodeProc :: MonadIO m => IORef Rib -> IORef Rib -> m (Int, [Aeson.Value], [Aeson.Value])
+decodeProc codeRef envRef = do
+  (arity, codeVals) <- readRef codeRef >>= \case
+    RibInt n -> error "Proc code is not an object."
+    RibObj arityRef _unused codePtr -> do
+      readRef arityRef >>= \case
+        RibInt arity -> do
+          codeVals <- readRef codePtr >>= ribInstructionToJson
+          pure (arity, codeVals)
+        _ -> error "Proc code arity is not an number."
+
+  env <- readRef envRef >>= \case
+    RibInt i -> pure []
+    RibObj car cdr lstTag ->
+      -- Cet objet est bien une pair ou la liste vide?
+      readRef lstTag >>= \case
+        -- Pair
+        RibInt 0 -> decodeList car cdr
+
+        RibInt 5 -> pure [] -- Liste vide
+        RibInt n -> error $ "Proc env is not a list. Tag: " <> show n
+        RibObj {} -> error "Proc env is not a list. Its tag is an object."
+
+  pure (arity, codeVals, env)
