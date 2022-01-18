@@ -12,7 +12,7 @@ module VM where
 import Data.Char ( ord, chr )
 import GHC.Arr ( Array, listArray, unsafeAt )
 import Data.Word ( Word8 )
-import Data.IORef ( writeIORef, newIORef, IORef )
+import Data.IORef ( IORef )
 import GHC.IO (unsafePerformIO)
 
 import Utils
@@ -76,11 +76,15 @@ instance RibRef (IORef Rib) where
 
 -- On crée une référence pour le Rib
 instance RibRef Rib where
-  toRibRef = newIORef
+  toRibRef = newRef
 
 -- On wrap le Int dans RibInt et on crée une référence
 instance RibRef Int where
-  toRibRef = newIORef . RibInt
+  toRibRef = newRef . RibInt
+
+-- On convertit le char en RibInt et on crée une référence
+instance RibRef Char where
+  toRibRef = newRef . RibInt . ord
 
 mkObj :: (RibRef a, RibRef b, RibRef c, MonadIO m) => a -> b -> c -> m Rib
 mkObj n r2 r3 = RibObj <$> liftIO (toRibRef r2) <*> liftIO (toRibRef r3) <*> liftIO (toRibRef n)
@@ -153,7 +157,7 @@ push v = do
   -- Cons v to stack
   newStack <- cons v stackPtr
   -- Update stack reference to point to new stack
-  liftIO $ writeIORef stackPtr newStack
+  liftIO $ writeRef stackPtr newStack
 
 pop :: ReaderIO State Rib
 pop = do
@@ -332,7 +336,7 @@ decodeInstructions st pos = do
               RibObj v1 _ _ ->
                 readIORef v1 >>=
                   mkObj' (RibInt $ min 4 op - 1) n >>=
-                    writeIORef v1
+                    writeRef v1
 
             pure (n, d, op, st)
 
@@ -344,7 +348,7 @@ decodeInstructions st pos = do
 
         -- let RibObj v1 _ _ = stack st
         -- v <- readIORef v1
-        -- writeIORef v1 =<< mkObj' (RibInt $ op - 1) (RibInt n) v
+        -- writeRef v1 =<< mkObj' (RibInt $ op - 1) (RibInt n) v
         -- go st (pos + 1 + getIntOffset)
 
       -- Finds the op code from the encoded instruction
@@ -354,35 +358,4 @@ decodeInstructions st pos = do
 
   undefined
 
--- Debugging
-
-testRib :: Rib
-testRib = RibObj (mk (RibObj (mk $ RibInt 0)
-                      (mk (RibObj (mk ribNil)
-                              (mk $ RibInt 0)
-                              (mk $ RibInt 3)))
-                      (mk $ RibInt 2)))
-              (mk ribNil)
-              (mk $ RibInt 0)
-  where
-    mk = unsafePerformIO . newIORef
-
-showRib :: Rib -> IO String
-showRib rib = fst <$> go 1 "" rib
-  where
-    go :: Int -> String -> Rib -> IO (String, Int)
-    go counter prefix (RibInt n) = pure (prefix <> show n, counter)
-    go counter prefix (RibObj v1 v2 v3) = do
-      v1 <- readIORef v1
-      v2 <- readIORef v2
-      v3 <- readIORef v3
-      (s1, counter1) <- go (counter  + 3)  ("    " <> prefix) v1
-      (s2, counter2) <- go (counter1 + 1)  ("    " <> prefix) v2
-      (s3, counter3) <- go (counter2 + 1)  ("    " <> prefix) v3
-
-      let str = prefix <> "Object:\n" -- <> show counter <> "]:\n"
-             <> show (counter + 1) <> ": " <> prefix <> s1 <> "\n"
-             <> show (counter + 2) <> ": " <> prefix <> s2 <> "\n"
-             <> show (counter + 3) <> ": " <> prefix <> s3
-      pure (str, counter3)
 -}

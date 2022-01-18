@@ -65,7 +65,9 @@ instance MonadIO IO where
 instance MonadIO (ReaderIO r) where
   liftIO = ReaderIO . const
 
---
+newRef :: MonadIO m => a -> m (IORef a)
+newRef = liftIO . newIORef
+
 readRef :: MonadIO m => IORef a -> m a
 readRef = liftIO . readIORef
 

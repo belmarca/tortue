@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Debug
       Ribbit
       Utils
       VM
@@ -33,7 +34,13 @@ library
   hs-source-dirs:
       src
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , aeson-pretty
+    , base >=4.7 && <5
+    , bytestring
+    , scientific
+    , text
+    , vector
   default-language: Haskell2010
 
 executable tortue-exe
@@ -44,8 +51,14 @@ executable tortue-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , aeson-pretty
+    , base >=4.7 && <5
+    , bytestring
+    , scientific
+    , text
     , tortue
+    , vector
   default-language: Haskell2010
 
 test-suite tortue-test
@@ -57,6 +70,12 @@ test-suite tortue-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , aeson-pretty
+    , base >=4.7 && <5
+    , bytestring
+    , scientific
+    , text
     , tortue
+    , vector
   default-language: Haskell2010
