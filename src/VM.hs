@@ -154,9 +154,11 @@ push :: RibRef a => a -> ReaderIO State ()
 push v = do
   -- Get stack reference
   stackPtr <- fmap stackRef get
-  -- Cons v to stack
-  newStack <- cons v stackPtr
-  -- Update stack reference to point to new stack
+  -- Save top of stack
+  stack <- readRef stackPtr
+  -- Cons v to top of stack
+  newStack <- cons v stack
+  -- Update stack reference to point to new top of stack
   writeRef stackPtr newStack
 
 pop :: ReaderIO State Rib
