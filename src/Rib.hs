@@ -49,8 +49,8 @@ read2 (RibObj _ v _) = readRef v
 read3 (RibObj _ _ v) = readRef v
 
 write1, write2, write3 :: (MonadIO m, HasCallStack) => Rib -> Rib -> m ()
-write2 (RibObj _ v _) = writeRef v
 write1 (RibObj v _ _) = writeRef v
+write2 (RibObj _ v _) = writeRef v
 write3 (RibObj _ _ v) = writeRef v
 
 mkPair :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib

@@ -73,9 +73,9 @@ data State = State
   , symbolTableRef :: IORef Rib
   }
 
-type Fun = ReaderIO State ()
+newtype Prim = Prim { prim :: HasCallStack => ReaderIO State () }
 
-push :: RibRef a => a -> ReaderIO State ()
+push :: HasCallStack => RibRef a => a -> ReaderIO State ()
 push v = do
   -- Get stack reference
   stackPtr <- fmap stackRef get
@@ -86,12 +86,12 @@ push v = do
   -- Update stack reference to point to new top of stack
   writeRef stackPtr newStack
 
-pop :: ReaderIO State Rib
+pop :: HasCallStack => ReaderIO State Rib
 pop = do
   ref <- popFast
   readRef ref
 
-popFast :: ReaderIO State (IORef Rib)
+popFast :: HasCallStack => ReaderIO State (IORef Rib)
 popFast = do
   -- Get stack reference
   stackPtr <- fmap stackRef get
@@ -107,14 +107,14 @@ popFast = do
 
 -- Primitives
 
-prim1 :: (Rib -> ReaderIO State Rib) -> Fun
-prim1 f = do
+prim1 :: HasCallStack => (Rib -> ReaderIO State Rib) -> Prim
+prim1 f = Prim $ do
   v1 <- pop
   x <- f v1
   push x
 
-prim2 :: (Rib -> Rib -> ReaderIO State Rib) -> Fun
-prim2 f = do
+prim2 :: HasCallStack => (Rib -> Rib -> ReaderIO State Rib) -> Prim
+prim2 f = Prim $ do
   v1 <- pop
   v2 <- pop
   x <- f v1 v2
@@ -122,21 +122,21 @@ prim2 f = do
 
 -- Note: Contrairement à prim1 et prim2, f prend des IORef car la seule
 -- utilisation de prim3 n'a pas besoin de lire les références.
-prim3 :: (IORef Rib -> IORef Rib -> IORef Rib -> Rib) -> Fun
-prim3 f = do
+prim3 :: HasCallStack => (IORef Rib -> IORef Rib -> IORef Rib -> Rib) -> Prim
+prim3 f = Prim $ do
   v1 <- popFast
   v2 <- popFast
   v3 <- popFast
   let x = f v1 v2 v3
   push x
 
-primitives :: [Fun]
+primitives :: HasCallStack => [Prim]
 primitives =
   [ prim3 RibObj                                                                      -- rib object constructor
   , prim1 pure                                                                        -- id
-  , void pop                                                                          -- take 2 TOS, keep first
+  , Prim (void pop)                                                                          -- take 2 TOS, keep first
   , prim2 (const pure)                                                                -- take 2 TOS, keep second
-  , do
+  , Prim $ do
       RibObj v1 _ _ <- pop
       stackPtr <- stackRef <$> get
       mkProc v1 stackPtr >>= push                                                     -- close
@@ -152,7 +152,7 @@ primitives =
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 - r2))                       -- sub
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 * r2))                       -- mult
   , prim2 (\(RibInt r1) (RibInt r2) -> pure $ RibInt (div r1 r2))                     -- quotient
-  , liftIO getChar >>= push . RibInt . ord                                            -- getChar
+  , Prim (liftIO getChar >>= push . RibInt . ord)                                            -- getChar
   , prim1 (\r@(RibInt v) -> liftIO (putChar (chr v)) >> pure r)                       -- putChar
   , prim1 (\c -> push c >> pure c)  -- Duplicate top element. Not a regular RVM primitive, but useful in Repl.hs
   ]
@@ -241,11 +241,6 @@ decodeInstructions = do
                 mkInstr (RibInt $ min 4 op - 1) n >>=
                   writeRef v1
               go rest'
-
-        -- let RibObj v1 _ _ = stack st
-        -- v <- readIORef v1
-        -- writeRef v1 =<< mkObj' (RibInt $ op - 1) (RibInt n) v
-        -- go st (pos + 1 + getIntOffset)
 
       -- Finds the op code from the encoded instruction
       go2 n op =
