@@ -6,17 +6,11 @@ module VM where
 import Data.Char ( ord, chr )
 import Data.Foldable ( foldrM )
 import Data.IORef ( IORef )
-import Data.Word ( Word8 )
-import GHC.Arr ( Array, listArray, unsafeAt )
 import GHC.IO ( unsafePerformIO )
 import GHC.Stack ( HasCallStack )
 
 import Utils
 import Rib
-
--- TODO: Unbox me
-input :: Array Int Word8
-input = listArray (0, length inputStr - 1) $ fmap (toEnum . ord) inputStr
 
 -- inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that prints HELLO!
 inputStr :: String
@@ -60,25 +54,10 @@ symbolTableStr, instructionsStr :: String
 
 -- Reading input
 
--- Warning: Unlike Python's get_byte, this doesn't increment pc
-getByte :: Int -> Word8
-getByte = unsafeAt input
-
-getCode :: Int -> Word8
-getCode pos =
-  let x = getByte pos - 35
-  in if x < 0 then 57 else x
-
 -- Positive numbers outside [0,45] are encoded using a variable length encoding.
 -- If the number is encoded in k characters (codes), the first k-1 are in
 -- [46, 91] and the k^th code is in [0,45] to mark the end of the number.
 -- The codes encode the number in base-46, and are interpreted modulo 46.
-getInt :: Int -> Int -> (Int, Int)
-getInt n pos =
-  let x = fromEnum $ getCode pos
-      n' = n * 46
-  in if x < 46 then (n' + x, pos + 1) else getInt (n' + x - 46) (pos + 1)
-
 readInt :: String -> Int -> (String, Int)
 readInt [] n = ([], n)
 readInt (x:xs) n =
@@ -180,49 +159,9 @@ primitives =
 
 -- Initializing symbol table
 
--- Int returned corresponds to the cursor position in the input
-initialSymbolTable :: IO (Int, Rib)
-initialSymbolTable = do
-  -- Symbols with no string representations
-  let go1 n s = do
-        if n > 0
-          then do
-            -- Empty string
-            str <- mkStr ribNil (RibInt 0)
-            -- Symbol with 0 as value
-            sym <- mkSymb (RibInt 0) str
-            -- Append the symbol to the symbol table
-            s' <- cons sym s
-            go1 (n-1) s'
-          else pure s
-
-      -- Symbols with string representations
-      go2 :: Int -> Int -> Rib -> Rib -> IO (Int, Rib)
-      go2 pos n acc s = do
-        let c = getByte pos
-            appendAcc = do
-              -- String from acc
-              str <- mkStr acc (RibInt n)
-              -- Symbol with 0 as value
-              sym <- mkSymb (RibInt 0) str
-              -- Append the symbol to the symbol table
-              cons sym s
-        if c == 44
-          -- 44 = ',' end of element
-          then appendAcc >>= go2 (pos + 1) 0 ribNil
-          -- 59 = ';', end of symbol table
-          else if c == 59 then (pos + 1,) <$> appendAcc
-          else do
-            -- Append character to acc
-            acc' <- cons (RibInt $ fromEnum c) acc
-            go2 (pos + 1) (n+1) acc' s
-
-  let (i, i') = getInt 0 0
-  go1 i ribNil >>= go2 i' 0 ribNil
-
 -- Définition alternative de initialSymbolTable plus idiomatique.
-initialSymbolTable' :: IO Rib
-initialSymbolTable' = do
+initialSymbolTable :: IO Rib
+initialSymbolTable = do
   let symbolStrings = splitOnCommas symbolTableStr
       -- On ajoute les symboles sans string
       symbolStringsWithEmpty = replicate emptySymbolsCount "" <> symbolStrings

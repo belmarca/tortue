@@ -15,7 +15,7 @@ import VM
 createState :: IO State
 createState = do
   stack <- newRef ribNil
-  symbolTable <- initialSymbolTable'
+  symbolTable <- initialSymbolTable
   State <$> newRef ribNil <*> newRef symbolTable
 
 runWithState :: ReaderIO State a -> IO State
