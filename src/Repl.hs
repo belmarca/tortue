@@ -200,20 +200,21 @@ prog = do
 
 -- Affiche le stack courant
 inspectStack :: ReaderIO State ()
-inspectStack = liftIO . printRibList =<< readRef . stackRef =<< get
+inspectStack = printRibList =<< readRef . stackRef =<< get
 
 run :: IO ()
-run = void (runWithState prog)
+run = void (createState >>= runReaderIO prog)
 
 -- Affiche state après exécution.
 -- En cas d'exception, affiche le stack au moment de l'échec.
 runVerbose :: IO ()
-runVerbose = bracket createState printState (runReaderIO prog)
-  -- runWithState prog >>= printState
+runVerbose = bracket createState (runReaderIO printState) (runReaderIO prog)
+  -- void $ runWithState (prog >> printState)
 
-printState :: State -> IO ()
-printState st = do
-  putStrLn "Stack:"
-  printRibList =<< readRef (stackRef st)
-  putStrLn "Symbol table:"
-  printRibList =<< readRef (symbolTableRef st)
+printState :: HasCallStack => ReaderIO State ()
+printState = do
+  st <- get
+  liftIO $ putStrLn "Stack:"
+  printRib =<< readRef (stackRef st)
+  liftIO $ putStrLn "Symbol table:"
+  printRib =<< readRef (symbolTableRef st)

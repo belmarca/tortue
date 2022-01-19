@@ -15,17 +15,18 @@ import qualified Data.Vector as Vector
 
 import Utils
 import Rib
+import VM
 
 -- Debugging functions
 
-printRib :: Rib -> IO ()
-printRib r = BS.putStrLn . Aeson.encodePretty =<< ribDataToJson r
+printRib :: Rib -> ReaderIO State ()
+printRib r = liftIO . BS.putStrLn . Aeson.encodePretty =<< ribDataToJson r
 
-printInstrRib :: Rib -> IO ()
-printInstrRib r = BS.putStrLn . Aeson.encodePretty =<< ribInstructionToJson r
+printInstrRib :: Rib -> ReaderIO State ()
+printInstrRib r = liftIO . BS.putStrLn . Aeson.encodePretty =<< ribInstructionToJson r
 
-printRibList :: Rib -> IO ()
-printRibList (RibObj car cdr _) = BS.putStrLn . Aeson.encodePretty =<< decodeList car cdr
+printRibList :: Rib -> ReaderIO State ()
+printRibList (RibObj car cdr _) = liftIO . BS.putStrLn . Aeson.encodePretty =<< decodeList car cdr
 printRibList r@(RibInt n) = printRib r
 
 {-# NOINLINE testRibLst #-}
@@ -44,34 +45,11 @@ testRibSymb = unsafePerformIO $ toRibSymbol "abc"
 testRibLst2 :: Rib
 testRibLst2 = unsafePerformIO $ toRibList [testRibStr, testRibSymb, ribNil]
 
--- For type inference
-i :: Int -> Int
-i = id
-
-showRib :: Rib -> IO String
-showRib rib = fst <$> go 1 "" rib
-  where
-    go :: Int -> String -> Rib -> IO (String, Int)
-    go counter prefix (RibInt n) = pure (prefix <> show n, counter)
-    go counter prefix (RibObj v1 v2 v3) = do
-      v1 <- readRef v1
-      v2 <- readRef v2
-      v3 <- readRef v3
-      (s1, counter1) <- go (counter  + 3)  ("    " <> prefix) v1
-      (s2, counter2) <- go (counter1 + 1)  ("    " <> prefix) v2
-      (s3, counter3) <- go (counter2 + 1)  ("    " <> prefix) v3
-
-      let str = prefix <> "Object:\n" -- <> show counter <> "]:\n"
-             <> show (counter + 1) <> ": " <> prefix <> s1 <> "\n"
-             <> show (counter + 2) <> ": " <> prefix <> s2 <> "\n"
-             <> show (counter + 3) <> ": " <> prefix <> s3
-      pure (str, counter3)
-
 -- Convert the data rib to JSON
 -- For decoding instructions, see ribInstructionToJson
-ribDataToJson :: forall m. MonadIO m => Rib -> m Aeson.Value
+ribDataToJson :: Rib -> ReaderIO State Aeson.Value
 ribDataToJson (RibInt n) = pure $ Aeson.Number (fromIntegral n)
-ribDataToJson (RibObj v1 v2 tag) = do
+ribDataToJson o@(RibObj v1 v2 tag) = do
   tag <- readRef tag
   case tag of
     -- Pair
@@ -111,7 +89,7 @@ ribDataToJson (RibObj v1 v2 tag) = do
     addField :: Aeson.Value -> Text -> Aeson.Value -> Aeson.Value
     addField (Aeson.Object obj) key val = Aeson.Object $ Map.insert key val obj
 
-ribInstructionToJson :: forall m. MonadIO m => Rib -> m [Aeson.Value]
+ribInstructionToJson :: Rib -> ReaderIO State [Aeson.Value]
 ribInstructionToJson (RibInt n) = pure [] -- pure [Aeson.Number (fromIntegral n)]
 ribInstructionToJson (RibObj tag v2 v3) = do
   tag <- readRef tag
@@ -154,7 +132,7 @@ ribInstructionToJson (RibObj tag v2 v3) = do
 
     _ -> error "Unknown instruction"
 
-decodeList :: MonadIO m => IORef Rib -> IORef Rib -> m [Aeson.Value]
+decodeList :: IORef Rib -> IORef Rib -> ReaderIO State [Aeson.Value]
 decodeList car cdr = do
   carValue  <- ribDataToJson =<< readRef car
   cdrValue  <- readRef cdr
@@ -171,7 +149,7 @@ decodeList car cdr = do
                   RibObj {} -> error "Invalid Rib list. Tag can't be an object."
   pure $ carValue : cdrValues
 
-decodeVector :: MonadIO m => IORef Rib -> IORef Rib -> m (Int, [Aeson.Value]) -- Length and elements
+decodeVector :: IORef Rib -> IORef Rib -> ReaderIO State (Int, [Aeson.Value]) -- Length and elements
 decodeVector elemsRef lengthRef = do
   len <- readRef lengthRef
   -- Length est bien un entier?
@@ -196,7 +174,7 @@ decodeVector elemsRef lengthRef = do
 
     RibObj {} -> error "Vector length is not an int"
 
-decodeString :: MonadIO m => IORef Rib -> IORef Rib -> m (Int, String)
+decodeString :: IORef Rib -> IORef Rib -> ReaderIO State (Int, String)
 decodeString elemsRef lengthRef = do
   (len, vals) <- decodeVector elemsRef lengthRef
   let toChar = \case
@@ -208,7 +186,7 @@ decodeString elemsRef lengthRef = do
   chars <- mapM toChar vals
   pure (len, chars)
 
-decodeProc :: MonadIO m => IORef Rib -> IORef Rib -> m (Int, [Aeson.Value], [Aeson.Value])
+decodeProc :: IORef Rib -> IORef Rib -> ReaderIO State (Int, [Aeson.Value], [Aeson.Value])
 decodeProc codeRef envRef = do
   (arity, codeVals) <- readRef codeRef >>= \case
     RibInt n -> error "Proc code is not an object."
