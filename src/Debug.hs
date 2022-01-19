@@ -146,6 +146,11 @@ ribInstructionToJson (RibObj tag v2 v3) = do
       rest <- readRef v3 >>= ribInstructionToJson
       pure $ instr : rest
 
+    RibInt 5 -> do
+      let instr = Aeson.String "halt"
+      rest <- readRef v3 >>= ribInstructionToJson
+      pure $ instr : rest
+
     _ -> error "Unknown instruction"
 
 decodeList :: IORef Rib -> IORef Rib -> ReaderIO State [Aeson.Value]
