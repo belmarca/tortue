@@ -73,7 +73,7 @@ data State = State
   , symbolTableRef :: IORef Rib
   }
 
-newtype Prim = Prim { prim :: HasCallStack => ReaderIO State () }
+newtype Prim = Prim { runPrim :: HasCallStack => ReaderIO State () }
 
 push :: HasCallStack => RibRef a => a -> ReaderIO State ()
 push v = do
@@ -238,7 +238,7 @@ decodeInstructions = do
             RibInt i -> read1 n >>= read3
             RibObj v1 _ _ -> do
               readRef v1 >>=
-                mkInstr (RibInt $ min 4 op - 1) n >>=
+                mkInstr (min 4 op - 1) n >>=
                   writeRef v1
               go rest'
 

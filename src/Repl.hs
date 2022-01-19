@@ -61,8 +61,8 @@ swap = do
   push tos2
 
 callPrim :: HasCallStack => Int -> ReaderIO State ()
-callPrim primCode = do
-  prim (primitives !! primCode)
+callPrim primCode =
+  runPrim (primitives !! primCode)
 
 -- Basic functions
 

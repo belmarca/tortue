@@ -103,13 +103,13 @@ ribDataToJson o@(RibObj v1 v2 tag) = do
 
 ribInstructionToJson :: Rib -> ReaderIO State [Aeson.Value]
 ribInstructionToJson (RibInt n) = pure [] -- pure [Aeson.Number (fromIntegral n)]
-ribInstructionToJson (RibObj tag v2 v3) = do
+ribInstructionToJson o@(RibObj tag v2 v3) = do
   tag <- readRef tag
   case tag of
     RibInt 0 -> do
       readRef v3 >>= \case
         -- Jump
-        RibInt 0 -> pure $ [Aeson.String "jump"]
+        RibInt 0 -> pure [Aeson.String "jump"]
 
         -- Call
         v3' -> do
@@ -146,12 +146,24 @@ ribInstructionToJson (RibObj tag v2 v3) = do
       rest <- readRef v3 >>= ribInstructionToJson
       pure $ instr : rest
 
+    -- Halt
     RibInt 5 -> do
       let instr = Aeson.String "halt"
       rest <- readRef v3 >>= ribInstructionToJson
       pure $ instr : rest
 
-    _ -> error "Unknown instruction"
+    -- Unknown instruction tag
+    RibInt n -> do
+      val <- readRef v2 >>= ribDataToJson
+      let instr = Aeson.object ["instruction-code" .= n, "value" .= val]
+      rest <- readRef v3 >>= ribInstructionToJson
+      pure $ instr : rest
+
+    -- Misencoded instructions or data passing as an instruction
+    tag -> do
+      instr <- ribDataToJson o
+      rest <- readRef v3 >>= ribInstructionToJson
+      pure $ instr : rest
 
 decodeList :: IORef Rib -> IORef Rib -> ReaderIO State [Aeson.Value]
 decodeList car cdr = do
