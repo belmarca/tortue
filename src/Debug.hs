@@ -3,7 +3,7 @@ module Debug where
 
 import Data.Aeson ( KeyValue((.=)) )
 import Data.Char ( chr, ord )
-import Data.Text ( Text )
+import Data.Text ( Text, pack )
 import Data.IORef ( IORef )
 import Data.Scientific ( floatingOrInteger )
 import GHC.IO ( unsafePerformIO )
@@ -131,8 +131,12 @@ ribInstructionToJson (RibObj tag v2 v3) = do
 
     -- Const
     RibInt 3 -> do
-      obj <- readRef v2 >>= ribDataToJson
-      let instr = Aeson.object ["push" .= obj]
+      val <- readRef v2
+      instr <- case val of
+        RibInt n -> pure $ Aeson.String ("push: " <> pack (show n))
+        r -> do
+          obj <- ribDataToJson r
+          pure $ Aeson.object ["push" .= obj]
       rest <- readRef v3 >>= ribInstructionToJson
       pure $ instr : rest
 
