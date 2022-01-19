@@ -8,11 +8,11 @@ import Data.Foldable ( foldrM )
 import Data.IORef ( IORef )
 import Data.Word ( Word8 )
 import GHC.Arr ( Array, listArray, unsafeAt )
-import GHC.IO (unsafePerformIO)
+import GHC.IO ( unsafePerformIO )
+import GHC.Stack ( HasCallStack )
 
 import Utils
 import Rib
-import GHC.Stack (HasCallStack)
 
 -- TODO: Unbox me
 input :: Array Int Word8
@@ -185,7 +185,7 @@ initialSymbolTable :: IO (Int, Rib)
 initialSymbolTable = do
   -- Symbols with no string representations
   let go1 n s = do
-        if n >= 0
+        if n > 0
           then do
             -- Empty string
             str <- mkStr ribNil (RibInt 0)
@@ -228,12 +228,14 @@ initialSymbolTable' = do
       symbolStringsWithEmpty = replicate emptySymbolsCount "" <> symbolStrings
   -- Pour chaque symbole, on encode son string en Rib
   symbolStringRibs <- mapM toRibSymbol symbolStringsWithEmpty
-  -- On encode la liste
-  toRibList symbolStringRibs
+  -- On encode la liste dans l'ordre inverse
+  toRibList (reverse symbolStringRibs)
   where
     -- Brise le string sur les virgules
-    splitOnCommas [] = []
-    splitOnCommas xs = let (sym, rest) = span (/= ',') xs in reverse sym : splitOnCommas (drop 1 rest)
+    splitOnCommas xs =
+      case span (/= ',') xs of
+        (sym, "") -> [reverse sym]
+        (sym, rest) -> reverse sym : splitOnCommas (drop 1 rest)
 
 -- Decoding RVM instructions
 
