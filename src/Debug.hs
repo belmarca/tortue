@@ -81,8 +81,20 @@ ribDataToJson o@(RibObj v1 v2 tag) = do
     -- Special value
     RibInt 5 -> pure $ Aeson.String "#()#"
 
+    -- Unknown tag
+    RibInt n -> do
+      u1 <- ribDataToJson =<< readRef v1
+      u2 <- ribDataToJson =<< readRef v2
+      pure $ Aeson.object ["field0" .= u1, "field1" .= u2, "tag" .= n]
+
     -- Unknown object
-    _ -> error "Unknown object"
+    RibObj t1 t2 t3 -> do
+      a  <- ribDataToJson =<< readRef v1
+      b  <- ribDataToJson =<< readRef v2
+      u1 <- ribDataToJson =<< readRef t1
+      u2 <- ribDataToJson =<< readRef t2
+      u3 <- ribDataToJson =<< readRef t3
+      pure $ Aeson.object ["field0" .= u1, "field1" .= u2, "tag" .= Aeson.object ["tag0" .= u1, "tag1" .= u2, "tag2" .= u3]]
 
   where
     -- FIXME: Partial function but works for now
@@ -146,7 +158,12 @@ decodeList car cdr = do
                   RibInt 5 -> pure [] -- Nil!
                   RibInt 0 -> decodeList cadr cddr -- -- Continuing
                   RibInt n -> error $ "Invalid Rib list. Unexpected tag: " <> show n
-                  RibObj {} -> error "Invalid Rib list. Tag can't be an object."
+                  -- Checking if it's the primordial continuation at the bottom of the stack
+                  RibObj v1 v2 v3 -> do
+                    a <- (,,) <$> readRef v1 <*> readRef v2 <*> readRef v3
+                    case a of
+                      (RibInt 5, RibInt 0, RibInt 0) -> pure ["##END_OF_STACK##"]
+                      _ -> error "Invalid Rib list. Tag can't be an object."
   pure $ carValue : cdrValues
 
 decodeVector :: IORef Rib -> IORef Rib -> ReaderIO State (Int, [Aeson.Value]) -- Length and elements
@@ -189,7 +206,7 @@ decodeString elemsRef lengthRef = do
 decodeProc :: IORef Rib -> IORef Rib -> ReaderIO State (Int, [Aeson.Value], [Aeson.Value])
 decodeProc codeRef envRef = do
   (arity, codeVals) <- readRef codeRef >>= \case
-    RibInt n -> error "Proc code is not an object."
+    RibInt n -> pure (-1, [])
     RibObj arityRef _unused codePtr -> do
       readRef arityRef >>= \case
         RibInt arity -> do
@@ -197,16 +214,21 @@ decodeProc codeRef envRef = do
           pure (arity, codeVals)
         _ -> error "Proc code arity is not an number."
 
-  env <- readRef envRef >>= \case
-    RibInt i -> pure []
-    RibObj car cdr lstTag ->
-      -- Cet objet est bien une pair ou la liste vide?
-      readRef lstTag >>= \case
-        -- Pair
-        RibInt 0 -> decodeList car cdr
+  st <- get
+  env <- if stackRef st == envRef
+          then pure [Aeson.String "stack"]
+         else if symbolTableRef st == envRef
+          then pure [Aeson.String "symbol table"]
+         else readRef envRef >>= \case
+          RibInt i -> pure []
+          RibObj car cdr lstTag ->
+            -- Cet objet est bien une pair ou la liste vide?
+            readRef lstTag >>= \case
+              -- Pair
+              RibInt 0 -> decodeList car cdr
 
-        RibInt 5 -> pure [] -- Liste vide
-        RibInt n -> error $ "Proc env is not a list. Tag: " <> show n
-        RibObj {} -> error "Proc env is not a list. Its tag is an object."
+              RibInt 5 -> pure [] -- Liste vide
+              RibInt n -> error $ "Proc env is not a list. Tag: " <> show n
+              RibObj {} -> error "Proc env is not a list. Its tag is an object."
 
   pure (arity, codeVals, env)
