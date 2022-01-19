@@ -6,6 +6,7 @@ import Prelude hiding (drop)
 import Control.Exception ( bracket )
 import Control.Monad (forM, forM_, replicateM, replicateM_)
 import Data.Char (chr)
+import GHC.Stack ( HasCallStack )
 
 import Debug
 import Rib
@@ -16,12 +17,28 @@ createState :: IO State
 createState = do
   stack <- newRef ribNil
   symbolTable <- initialSymbolTable
-  State <$> newRef ribNil <*> newRef symbolTable
+  state <- State <$> newRef ribNil <*> newRef symbolTable
 
-runWithState :: ReaderIO State a -> IO State
-runWithState prog = do
-  state <- createState
-  runReaderIO prog state
+  -- Initialize program
+  flip runReaderIO state $ do
+    -- void decodeInstructions
+    symbolTablePtr <- symbolTableRef <$> get
+    symbolTable <- readRef symbolTablePtr
+    setGlobal "symbtl" =<< mkProc (RibInt 0) symbolTablePtr -- primitive 0
+    setGlobal "false" ribFalse
+    setGlobal "true"  ribTrue
+    setGlobal "nil"   ribNil
+
+    -- Restore symbol table pointer so we don't lose some entries.
+    -- This is because setGlobal sets the symbol table pointer to the cdr.
+    writeRef symbolTablePtr symbolTable
+
+    -- Replace stack with [0,0,[5,0,0]]:
+    -- primordial continuation which executes halt instruction.
+    stackPtr <- stackRef <$> get
+    halt1 <- mkObj (RibInt 0) (RibInt 5) (RibInt 0)
+    halt2 <- mkObj halt1 (RibInt 0) (RibInt 0)
+    writeRef stackPtr halt2
   pure state
 
 -- Helper functions

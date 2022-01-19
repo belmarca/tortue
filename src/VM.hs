@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, TupleSections, FlexibleInstances #-}
+{-# LANGUAGE LambdaCase, TupleSections, FlexibleInstances, RankNTypes #-}
 {-# LANGUAGE Strict #-} -- Rend le langage strict pour de meilleures performances
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module VM where
@@ -248,3 +248,20 @@ decodeInstructions = do
         in if n <= 2+d then (n, d, op) else go2 (n-d-3) (op+1)
 
   go instructionsStr
+
+-- FIXME: We lose the elements of the symbol table.
+-- It would be nice if they were kept and available to display when debugging.
+-- For now, the symbol table reference is restored after the calls to setGlobal.
+setGlobal :: String -> Rib -> ReaderIO State ()
+setGlobal gloName val = do
+  symbolTablePtr <- symbolTableRef <$> get
+  symbolTable <- readRef symbolTablePtr
+  -- symtbl[0][0]=val
+  symbolTableFst <- read1 symbolTable
+  write1 symbolTableFst val
+  -- Give name to global variable.
+  -- Equivalent to symtbl[0][1]=val
+  -- Note: This is not in the python implementation
+  write2 symbolTableFst =<< toRibString gloName
+  -- symtbl=symtbl[1]
+  writeRef symbolTablePtr =<< read2 symbolTable
