@@ -3,6 +3,9 @@ utils=src/Utils.hs
 rib=src/Rib.hs
 vm=src/VM.hs
 
+build: bundle
+	ghc dist/rvm.hs
+
 bundle:
 	mkdir -p dist
 	cp rvm.hs.in $(out)
@@ -36,9 +39,6 @@ bundle:
 	echo "    putStrLn \"RVM code:\" ;" >> $(out)
 	echo "    putStrLn \");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y\" ; -- RVM code that prints HELLO!" >> $(out)
 	echo "    return ()" >> $(out)
-
-build: bundle
-	ghc dist/rvm.hs
 
 clean:
 	rm dist/*
