@@ -1,0 +1,3 @@
+-- | tortue
+-- | A Ribbit Scheme VM implementation in Haskell
+-- | Copyright 2022 - Laurent Huberdeau & Marc-André Bélanger
