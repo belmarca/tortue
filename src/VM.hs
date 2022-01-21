@@ -185,7 +185,6 @@ decodeInstructions = do
                           pure (rest', RibInt i)
                         else if n >= d
                           then do
-  , prim2 (\(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 - r2))                       -- sub
                             -- symbol_ref(get_int(n - d - 1))
                             let (rest', i) = readInt rest (n - d - 1)
                             n <- symbolRef i
