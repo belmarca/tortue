@@ -129,11 +129,11 @@ primitives =
 -- Initializing symbol table
 
 -- Définition alternative de initialSymbolTable plus idiomatique.
-initialSymbolTable :: IO Rib
-initialSymbolTable = do
-  let symbolStrings = splitOnCommas symbolTableStr
+initialSymbolTable :: String -> Int -> IO Rib
+initialSymbolTable symTblStr emptySymCount = do
+  let symbolStrings = splitOnCommas symTblStr
       -- On ajoute les symboles sans string
-      symbolStringsWithEmpty = replicate emptySymbolsCount "" <> symbolStrings
+      symbolStringsWithEmpty = replicate emptySymCount "" <> symbolStrings
   -- Pour chaque symbole, on encode son string en Rib
   symbolStringRibs <- mapM toRibSymbol symbolStringsWithEmpty
   -- On encode la liste dans l'ordre inverse
@@ -155,8 +155,8 @@ symbolRef n = do
 listTail :: MonadIO m => Int -> Rib -> m Rib
 listTail = \case 0 -> pure; n -> \r -> read2 r >>= listTail (n-1)
 
-decodeInstructions :: HasCallStack => ReaderIO State Rib
-decodeInstructions = do
+decodeInstructions :: HasCallStack => String -> ReaderIO State Rib
+decodeInstructions instrStr = do
   stackPtr <- fmap stackRef get
   let
       go :: HasCallStack => String -> ReaderIO State Rib
@@ -216,7 +216,7 @@ decodeInstructions = do
         let d = [20,30,0,10,11,4] !! op
         in if n <= 2+d then (n, d, op) else go2 (n-d-3) (op+1)
 
-  go instructionsStr
+  go instrStr
 
 -- FIXME: We lose the elements of the symbol table.
 -- It would be nice if they were kept and available to display when debugging.

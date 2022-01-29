@@ -15,13 +15,12 @@ import VM
 
 createState :: IO State
 createState = do
-  stack <- newRef ribNil
-  symbolTable <- initialSymbolTable
+  symbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
   state <- State <$> newRef ribNil <*> newRef symbolTable
 
   -- Initialize program
   flip runReaderIO state $ do
-    -- void decodeInstructions
+    void (decodeInstructions instructionsStr)
     symbolTablePtr <- symbolTableRef <$> get
     symbolTable <- readRef symbolTablePtr
     setGlobal "symbtl" =<< mkProc (RibInt 0) symbolTablePtr -- primitive 0

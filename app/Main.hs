@@ -11,5 +11,5 @@ import System.Exit (exitSuccess)
 main :: IO ()
 main = do
   st <- createState
-  runReaderIO decodeInstructions st
+  runReaderIO (decodeInstructions instructionsStr) st
   exitSuccess
