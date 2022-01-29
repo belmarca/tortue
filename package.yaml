@@ -30,6 +30,12 @@ dependencies:
 - unordered-containers
 - vector
 
+ghc-options:
+- -threaded
+- -rtsopts
+- -with-rtsopts=-N
+- -O2
+
 library:
   source-dirs: src
 
@@ -41,6 +47,9 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -O2
+    - -optl-s # Strip file (enabled by default on stack)
+    - -dynamic # Link RTS dynamically (saves >700KB)
     dependencies:
     - tortue
 
