@@ -10,6 +10,8 @@ import Data.IORef ( IORef )
 import Utils
 import Rib
 
+import Debug.Trace
+
 inputStr :: String
 inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that prints HELLO!
 
@@ -235,3 +237,95 @@ setGlobal symbolTablePtr gloName val = do
   writeRef symbolTablePtr =<< read2 symbolTable
   pure r1
 
+eval :: Rib -> ReaderIO State ()
+eval pc = do
+  traceShowM "eval"
+  printInstrRib pc
+  o <- read2 pc
+  i <- read1 pc
+  stackPtr <- stackRef <$> get
+  case i of
+    -- jump/call
+    RibInt 0 -> do
+      traceShowM "jump/call"
+      o <- getOpnd o >>= read1
+      c <- read1 o
+      case c of -- if is_rib(c)
+        RibObj ir ir' ir2 -> do
+          c2 <- cons (RibInt 0) o -- c2=[0,o,0]
+          RibInt arity <- read1 c -- nargs=c[0]
+          s2 <- foldrM (\_ args -> pop >>= flip cons args) c2 [1..arity] -- while nargs:s2=[pop(),s2,0];nargs-=1
+          read3 pc >>= \case -- if is_rib(pc[2])
+            o@RibObj {} -> do -- call
+              readRef stackPtr >>= write1 c2 -- c2[0]=stack
+              write3 c2 o                    -- c2[2]=pc[2]
+            RibInt n -> do -- jump
+              k <- getCont          -- k=get_cont()
+              read1 k >>= write1 c2 -- c2[0]=k[0]
+              read3 k >>= write3 c2 -- c2[2]=k[2]
+          writeRef stackPtr s2 -- stack=s2
+          read3 c >>= eval -- pc=c[2] & loop
+
+        RibInt n -> do
+          primitives !! n -- primitives[c]()
+          read3 pc >>= \case -- is_rib(pc[2]):
+            RibObj {} -> read3 c >>= eval -- call. c=pc; pc=c[2]
+            RibInt j -> do -- jump
+              k <- getCont -- c=get_cont()
+              stack <- readRef stackPtr
+              read1 c >>= write2 stack -- stack[1]=c[0]
+              read3 c >>= eval
+
+    -- set
+    RibInt 1 -> do
+      traceShowM "set"
+      x <- pop
+      opnd <- getOpnd o
+      write1 opnd x
+      read3 pc >>= eval
+
+    -- get
+    RibInt 2 -> do
+      traceShowM "get"
+      getOpnd o >>= read1 >>= push
+      read3 pc >>= eval
+
+    -- const
+    RibInt 3 -> do
+      traceShowM "const"
+      push o
+      read3 pc >>= eval
+
+    -- if
+    RibInt 4 -> do
+      traceShowM "if"
+      tos <- popFast
+      f <- falseRef <$> get
+      if tos == f -- IORef Eq's instance is pointer equality.
+        then read3 pc >>= eval
+        else read2 pc >>= eval
+
+    -- halt
+    _ -> error "HALT!"
+
+  -- printInstrRib pc
+
+getOpnd :: Rib -> ReaderIO State Rib
+getOpnd o@RibObj {} = pure o
+getOpnd (RibInt n) = do
+  stackPtr <- stackRef <$> get
+  readRef stackPtr >>= listTail n
+
+-- Look at stack until it finds the continuation rib. The continuation rib is
+-- the first rib of the stack that doesn't have an Int as its tag.
+getCont :: ReaderIO State Rib
+getCont = do
+  stackPtr <- stackRef <$> get
+  readRef stackPtr >>= go
+  where
+    go s = case s of
+      RibInt _ -> error "getCont: Stack is not a Rib."
+      r ->
+        read3 r >>= \case
+          RibInt _ -> pure s
+          _ -> read2 r >>= go
