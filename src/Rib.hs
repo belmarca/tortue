@@ -9,7 +9,6 @@ import Data.IORef ( IORef )
 import GHC.IO ( unsafePerformIO )
 
 import Utils ( writeRef, readRef, newRef, MonadIO )
-import GHC.Stack ( HasCallStack )
 
 -- Rib Objects
 
@@ -43,12 +42,12 @@ mkObj tag r1 r2 = RibObj <$> toRibRef r1 <*> toRibRef r2 <*> toRibRef tag
 mkInstr :: (RibRef a, RibRef b, RibRef c, MonadIO m) => a -> b -> c -> m Rib
 mkInstr tag r1 r2 = RibObj <$> toRibRef tag <*> toRibRef r1 <*> toRibRef r2
 
-read1, read2, read3 :: (MonadIO m, HasCallStack) => Rib -> m Rib
+read1, read2, read3 :: MonadIO m => Rib -> m Rib
 read1 (RibObj v _ _) = readRef v
 read2 (RibObj _ v _) = readRef v
 read3 (RibObj _ _ v) = readRef v
 
-write1, write2, write3 :: (MonadIO m, HasCallStack) => Rib -> Rib -> m ()
+write1, write2, write3 :: MonadIO m => Rib -> Rib -> m ()
 write1 (RibObj v _ _) = writeRef v
 write2 (RibObj _ v _) = writeRef v
 write3 (RibObj _ _ v) = writeRef v
