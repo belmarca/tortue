@@ -14,31 +14,35 @@ import VM
 
 createState :: IO State
 createState = do
-  symbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
-  stackPtr    <- newRef (RibInt 0)
-  state       <- State <$> pure stackPtr <*> newRef symbolTable
+  -- Creating a partial state to decode the instructions.
+  -- We just need a stack and the symbol table.
+  -- The global object references will be patched later.
+  initialSymbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
+  symbolTableRef <- newRef initialSymbolTable
+  stackPtr <- newRef (RibInt 0)
+  let state = State stackPtr symbolTableRef undefined undefined undefined
 
-  -- Initialize program
-  flip runReaderIO state $ do
-    void (decodeInstructions instructionsStr)
+  -- Decode instructions.
+  -- It would be nice if decoding wouldn't execute in ReaderIO State.
+  instr <- runReaderIO (decodeInstructions instructionsStr) state
 
-    symbolTablePtr <- symbolTableRef <$> get
-    symbolTable <- readRef symbolTablePtr
-    setGlobal "symbtl" =<< mkProc (RibInt 0) symbolTablePtr -- primitive 0
-    setGlobal "false" ribFalse
-    setGlobal "true"  ribTrue
-    setGlobal "nil"   ribNil
+  -- Set global
+  setGlobal symbolTableRef "symbtl" =<< mkProc (RibInt 0) symbolTableRef -- primitive 0
+  falseRef <- setGlobal symbolTableRef "false" ribFalse
+  trueRef <- setGlobal symbolTableRef "true" ribTrue
+  nilRef <- setGlobal symbolTableRef "nil" ribNil
 
-    -- Restore symbol table pointer so we don't lose some entries.
-    -- This is because setGlobal sets the symbol table pointer to the cdr.
-    writeRef symbolTablePtr symbolTable
+  -- Restore symbol table pointer so we don't lose some entries.
+  -- This is because setGlobal sets the symbol table pointer to the cdr.
+  -- #### TODO: Does it break anything? ###
+  writeRef symbolTableRef initialSymbolTable
 
-    -- Replace stack with [0,0,[5,0,0]]:
-    -- primordial continuation which executes halt instruction.
-    halt1 <- mkObj (RibInt 0) (RibInt 5) (RibInt 0)
-    halt2 <- mkObj halt1 (RibInt 0) (RibInt 0)
-    writeRef stackPtr halt2
-  pure state
+  -- Replace stack with [0,0,[5,0,0]]:
+  -- primordial continuation which executes halt instruction.
+  halt1 <- mkObj (RibInt 0) (RibInt 5) (RibInt 0)
+  halt2 <- mkObj halt1 (RibInt 0) (RibInt 0)
+  writeRef stackPtr halt2
+  pure $ State stackPtr symbolTableRef falseRef trueRef nilRef
 
 -- Helper functions
 
