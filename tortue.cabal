@@ -28,7 +28,6 @@ library
       Debug
       Repl
       Rib
-      Ribbit
       Utils
       VM
   other-modules:
