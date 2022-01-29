@@ -169,29 +169,27 @@ decodeInstructions instrStr = do
           tos <- pop
           stack <- readRef stackPtr
           stack1 <- read1 stack
-          write1 stack =<< mkInstr op tos stack1
+          write1 stack =<< mkInstr (op - 1) tos stack1
           go rest
         else do
           op <- if op == 0
                   then push (RibInt 0) >> pure (op + 1)
                   else pure op
 
-          (rest', i) <- if n == d
+          (rest', n) <- if n == d
                           then do
                           -- get_int(0)
-                          let (rest', i) = readInt rest 0
-                          pure (rest', RibInt i)
+                          -- let (rest', i) = readInt rest 0
+                          -- pure (rest', RibInt i)
+                          pure (RibInt <$> readInt rest 0)
                         else if n >= d
-                          then do
-                            -- symbol_ref(get_int(n - d - 1))
-                            let (rest', i) = readInt rest (n - d - 1)
-                            n <- symbolRef i
-                            pure (rest', n)
+                        then do
+                          -- symbol_ref(get_int(n - d - 1))
+                          let (rest', i) = readInt rest (n - d - 1)
+                          (rest',) <$> symbolRef i
                         else if op < 3
-                          then do
-                            -- symbol_ref(n)
-                            n <- symbolRef n
-                            pure (rest, n)
+                          -- symbol_ref(n)
+                        then (rest,) <$> symbolRef n
                         else pure (rest, RibInt n)
 
           n <- if 4 < op
@@ -199,10 +197,10 @@ decodeInstructions instrStr = do
               tos <- pop
               b <- mkInstr n (RibInt 0) tos
               mkInstr b (RibInt 0) (RibInt 1)
-            else pure (RibInt n)
+            else pure n
 
           readRef stackPtr >>= \case
-            RibInt i -> read1 n >>= read3
+            RibInt i -> read1 n >>= read3 -- End: pc = n[0][2]
             RibObj v1 _ _ -> do
               readRef v1 >>=
                 mkInstr (min 4 op - 1) n >>=
