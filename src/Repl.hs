@@ -15,11 +15,13 @@ import VM
 createState :: IO State
 createState = do
   symbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
-  state <- State <$> newRef ribNil <*> newRef symbolTable
+  stackPtr    <- newRef (RibInt 0)
+  state       <- State <$> pure stackPtr <*> newRef symbolTable
 
   -- Initialize program
   flip runReaderIO state $ do
     void (decodeInstructions instructionsStr)
+
     symbolTablePtr <- symbolTableRef <$> get
     symbolTable <- readRef symbolTablePtr
     setGlobal "symbtl" =<< mkProc (RibInt 0) symbolTablePtr -- primitive 0
@@ -33,7 +35,6 @@ createState = do
 
     -- Replace stack with [0,0,[5,0,0]]:
     -- primordial continuation which executes halt instruction.
-    stackPtr <- stackRef <$> get
     halt1 <- mkObj (RibInt 0) (RibInt 5) (RibInt 0)
     halt2 <- mkObj halt1 (RibInt 0) (RibInt 0)
     writeRef stackPtr halt2
