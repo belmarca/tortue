@@ -83,7 +83,7 @@ ribTrue :: Rib
 ribTrue = unsafePerformIO mkSVal
 
 ribNil :: Rib
-ribNil = ribTrue
+ribNil = unsafePerformIO mkSVal
 
 -- Fonctions de conversion Haskell -> Rib
 
