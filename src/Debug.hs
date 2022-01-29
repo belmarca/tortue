@@ -136,7 +136,7 @@ ribInstructionToJson o@(RibObj tag v2 v3) = do
         RibInt n -> pure $ Aeson.String ("push: " <> pack (show n))
         r -> do
           obj <- ribDataToJson r
-          pure $ Aeson.object ["push" .= obj]
+          pure $ Aeson.object ["const" .= obj]
       rest <- readRef v3 >>= ribInstructionToJson
       pure $ instr : rest
 
