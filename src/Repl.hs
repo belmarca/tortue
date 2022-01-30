@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, Strict #-}
+{-# LANGUAGE LambdaCase #-}
 module Repl where
 
 import Prelude hiding (drop)
@@ -13,7 +13,14 @@ import Rib
 import Utils
 import VM
 
-createState :: IO State
+dummyState :: IO State
+dummyState = do
+  initialSymbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
+  symbolTableRef <- newRef initialSymbolTable
+  stackPtr <- newRef (RibInt 0)
+  pure $ State stackPtr symbolTableRef (error "Forced true") (error "Forced false") (error "Forced nil")
+
+createState :: IO (State, Rib)
 createState = do
   -- Creating a partial state to decode the instructions.
   -- We just need a stack and the symbol table.
@@ -21,7 +28,7 @@ createState = do
   initialSymbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
   symbolTableRef <- newRef initialSymbolTable
   stackPtr <- newRef (RibInt 0)
-  let state = State stackPtr symbolTableRef undefined undefined undefined
+  let state = State stackPtr symbolTableRef (error "Forced true") (error "Forced false") (error "Forced nil")
 
   -- Decode instructions.
   -- It would be nice if decoding wouldn't execute in ReaderIO State.
@@ -36,14 +43,14 @@ createState = do
   -- Restore symbol table pointer so we don't lose some entries.
   -- This is because setGlobal sets the symbol table pointer to the cdr.
   -- #### TODO: Does it break anything? ###
-  writeRef symbolTableRef initialSymbolTable
+  -- writeRef symbolTableRef initialSymbolTable
 
   -- Replace stack with [0,0,[5,0,0]]:
   -- primordial continuation which executes halt instruction.
   halt1 <- mkObj (RibInt 0) (RibInt 5) (RibInt 0)
   halt2 <- mkObj halt1 (RibInt 0) (RibInt 0)
   writeRef stackPtr halt2
-  pure $ State stackPtr symbolTableRef falseRef trueRef nilRef
+  pure (State stackPtr symbolTableRef falseRef trueRef nilRef, instr)
 
 -- Helper functions
 
@@ -224,10 +231,10 @@ inspectStack :: ReaderIO State ()
 inspectStack = printRibList =<< readRef . stackRef =<< get
 
 run :: IO ()
-run = void (createState >>= runReaderIO prog)
+run = void (createState >>= runReaderIO prog . fst)
 
 -- Affiche state après exécution.
 -- En cas d'exception, affiche le stack au moment de l'échec.
 runVerbose :: IO ()
-runVerbose = bracket createState (runReaderIO printState) (runReaderIO prog)
+runVerbose = bracket createState (runReaderIO printState . fst) (runReaderIO prog . fst)
   -- void $ runWithState (prog >> printState)

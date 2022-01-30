@@ -3,6 +3,7 @@ utils=src/Utils.hs
 rib=src/Rib.hs
 vm=src/VM.hs
 env=src/Env.hs
+main=app/Main.hs
 
 build: bundle
 	ghc dist/rvm.hs
@@ -33,17 +34,13 @@ bundle:
 	tail -n +$$((1+$(shell grep -n "import" $(vm) | tail -n1 | cut -d : -f 1))) $(vm) >> $(out)
 	echo "\n\n-- Env" >> $(out)
 	tail -n +$$((1+$(shell grep -n "import" $(env) | tail -n1 | cut -d : -f 1))) $(env) >> $(out)
+	echo "\n\n-- Main" >> $(out)
+	tail -n +$$((1+$(shell grep -n "import" $(main) | tail -n1 | cut -d : -f 1))) $(main) >> $(out)
 
 	# Remove module imports
 	sed -i '/import Utils/d' $(out)
 	sed -i '/import Rib/d' $(out)
 	sed -i '/import Env/d' $(out)
-
-	echo "\n\nmain :: IO ()" >> $(out)
-	echo "main = do" >> $(out)
-	echo "    putStrLn \"RVM code:\" ;" >> $(out)
-	echo "    putStrLn \");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y\" ; -- RVM code that prints HELLO!" >> $(out)
-	echo "    return ()" >> $(out)
 
 clean:
 	rm dist/*

@@ -10,6 +10,6 @@ import System.Exit (exitSuccess)
 
 main :: IO ()
 main = do
-  st <- createState
-  runReaderIO (decodeInstructions instructionsStr) st
+  (st, instructions) <- createState
+  runReaderIO (eval instructions) st
   exitSuccess
