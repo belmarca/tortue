@@ -288,3 +288,17 @@ decodeProc codeRef envRef = do
               RibObj {} -> error "Proc env is not a list. Its tag is an object."
 
   pure (arity, codeVals, env)
+
+printState :: ReaderIO State ()
+printState = do
+  st <- get
+  liftIO $ putStrLn "Stack:"
+  liftIO . print =<< ribToSexp =<< readRef (stackRef st)
+  liftIO $ putStrLn "Symbol table:"
+  liftIO . print =<< ribToSexp =<< readRef (symbolTableRef st)
+
+printStack :: ReaderIO State ()
+printStack = do
+  st <- get
+  liftIO $ putStrLn "Stack:"
+  liftIO . print =<< ribToSexp =<< readRef (stackRef st)

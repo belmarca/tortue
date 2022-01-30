@@ -230,11 +230,3 @@ run = void (createState >>= runReaderIO prog)
 runVerbose :: IO ()
 runVerbose = bracket createState (runReaderIO printState) (runReaderIO prog)
   -- void $ runWithState (prog >> printState)
-
-printState :: ReaderIO State ()
-printState = do
-  st <- get
-  liftIO $ putStrLn "Stack:"
-  printRib =<< readRef (stackRef st)
-  liftIO $ putStrLn "Symbol table:"
-  printRib =<< readRef (symbolTableRef st)
