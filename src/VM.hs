@@ -113,12 +113,12 @@ primitives = zipWith decorator [0..]
       stackPtr <- stackRef <$> get
       mkProc v1 stackPtr >>= push                                                     -- close
   , prim1 (pure . (\case RibInt _ -> ribFalse; _ -> ribTrue))                         -- rib?
-  , prim1 read1                                                                       -- field0 -- 6
-  , prim1 read2                                                                       -- field1 -- 7
-  , prim1 read3                                                                       -- field2 -- 8
-  , prim2 (\r v -> write1 r v >> pure v)                                              -- field0-set! -- 9
-  , prim2 (\r v -> write2 r v >> pure v)                                              -- field1-set! -- 10
-  , prim2 (\r v -> write3 r v >> pure v)                                              -- field2-set! -- 11
+  , prim1 read0                                                                       -- field0 -- 6
+  , prim1 read1                                                                       -- field1 -- 7
+  , prim1 read2                                                                       -- field2 -- 8
+  , prim2 (\r v -> write0 r v >> pure v)                                              -- field0-set! -- 9
+  , prim2 (\r v -> write1 r v >> pure v)                                              -- field1-set! -- 10
+  , prim2 (\r v -> write2 r v >> pure v)                                              -- field2-set! -- 11
   , prim2' $ \r1 r2 ->
       readRef r1 >>= \case
         RibObj {} -> pure $ toBool (r1 == r2)
@@ -167,17 +167,17 @@ initialSymbolTable symTblStr emptySymCount = do
 symbolRef :: Int -> ReaderIO State Rib
 symbolRef n = do
   symbolTable <- symbolTableRef <$> get
-  read1 =<< listTail n =<< readRef symbolTable
+  read0 =<< listTail n =<< readRef symbolTable
 
 listTail :: MonadIO m => Int -> Rib -> m Rib
-listTail = \case 0 -> pure; n -> read2 >=> listTail (n-1)
+listTail = \case 0 -> pure; n -> read1 >=> listTail (n-1)
 
 decodeInstructions :: String -> ReaderIO State Rib
 decodeInstructions instrStr = do
   stackPtr <- fmap stackRef get
   let
       go :: String -> ReaderIO State Rib
-      go [] = pop -- TODO: On devrait pas retourner read3 =<< read1 =<< pop à la place?
+      go [] = pop -- TODO: On devrait pas retourner read2 =<< read0 =<< pop à la place?
       go (x:rest) = do
         -- First code tells us the operand
         let c = ord x - 35
@@ -187,8 +187,8 @@ decodeInstructions instrStr = do
         then do
           tos <- pop
           stack <- readRef stackPtr
-          stack1 <- read1 stack
-          write1 stack =<< mkInstr (op - 1) tos stack1
+          stack1 <- read0 stack
+          write0 stack =<< mkInstr (op - 1) tos stack1
           go rest
         else do
           op <- if op == 0
@@ -218,7 +218,7 @@ decodeInstructions instrStr = do
             else pure n
 
           readRef stackPtr >>= \case
-            RibInt i -> read1 n >>= read3 -- End: pc = n[0][2]
+            RibInt i -> read0 n >>= read2 -- End: pc = n[0][2]
             RibObj v1 _ _ -> do
               readRef v1 >>=
                 mkInstr (min 4 op - 1) n >>=
@@ -240,72 +240,72 @@ setGlobal :: IORef Rib -> String -> Rib -> IO (IORef Rib)
 setGlobal symbolTablePtr gloName val = do
   symbolTable <- readRef symbolTablePtr
   -- symtbl[0][0]=val
-  symbolTableFst@(RibObj r1 _ _) <- read1 symbolTable
-  write1 symbolTableFst val
+  symbolTableFst@(RibObj r1 _ _) <- read0 symbolTable
+  write0 symbolTableFst val
   -- Give name to global variable.
   -- Equivalent to symtbl[0][1]=val
   -- Note: This is not in the python implementation
-  -- write2 symbolTableFst =<< toRibStringl gloName
+  -- write1 symbolTableFst =<< toRibStringl gloName
   -- symtbl=symtbl[1]
-  writeRef symbolTablePtr =<< read2 symbolTable
+  writeRef symbolTablePtr =<< read1 symbolTable
   pure r1
 
 eval :: Rib -> ReaderIO State ()
 eval pc = do
-  o <- read2 pc
-  i <- read1 pc
+  o <- read1 pc
+  i <- read0 pc
   stackPtr <- stackRef <$> get
   case i of
     -- jump/call
     RibInt 0 -> do
       -- traceShowM "jump/call"
-      o <- getOpnd o >>= read1
-      c <- read1 o
+      o <- getOpnd o >>= read0
+      c <- read0 o
       case c of -- if is_rib(c)
         RibObj ir ir' ir2 -> do
           c2 <- cons (RibInt 0) o -- c2=[0,o,0]
-          RibInt arity <- read1 c -- nargs=c[0]
+          RibInt arity <- read0 c -- nargs=c[0]
           s2 <- foldrM (\_ args -> pop >>= flip cons args) c2 [1..arity] -- while nargs:s2=[pop(),s2,0];nargs-=1
-          read3 pc >>= \case -- if is_rib(pc[2])
+          read2 pc >>= \case -- if is_rib(pc[2])
             o@RibObj {} -> do -- call
-              readRef stackPtr >>= write1 c2 -- c2[0]=stack
-              write3 c2 o                    -- c2[2]=pc[2]
+              readRef stackPtr >>= write0 c2 -- c2[0]=stack
+              write2 c2 o                    -- c2[2]=pc[2]
             RibInt n -> do -- jump
               k <- getCont          -- k=get_cont()
-              read1 k >>= write1 c2 -- c2[0]=k[0]
-              read3 k >>= write3 c2 -- c2[2]=k[2]
+              read0 k >>= write0 c2 -- c2[0]=k[0]
+              read2 k >>= write2 c2 -- c2[2]=k[2]
           writeRef stackPtr s2 -- stack=s2
-          read3 c >>= eval -- pc=c[2] & loop
+          read2 c >>= eval -- pc=c[2] & loop
 
         RibInt n -> do
           primitives !! n -- primitives[c]()
-          read3 pc >>= \case -- is_rib(pc[2]):
-            RibObj {} -> read3 pc >>= eval -- call. c=pc; pc=c[2]
+          read2 pc >>= \case -- is_rib(pc[2]):
+            RibObj {} -> read2 pc >>= eval -- call. c=pc; pc=c[2]
             RibInt j -> do -- jump
               k <- getCont -- c=get_cont()
               stack <- readRef stackPtr
-              read1 k >>= write2 stack -- stack[1]=c[0]
-              read3 k >>= eval
+              read0 k >>= write1 stack -- stack[1]=c[0]
+              read2 k >>= eval
 
     -- set
     RibInt 1 -> do
       -- traceShowM "set"
       x <- pop
       opnd <- getOpnd o
-      write1 opnd x
-      read3 pc >>= eval
+      write0 opnd x
+      read2 pc >>= eval
 
     -- get
     RibInt 2 -> do
       -- traceShowM "get"
-      getOpnd o >>= read1 >>= push
-      read3 pc >>= eval
+      getOpnd o >>= read0 >>= push
+      read2 pc >>= eval
 
     -- push
     RibInt 3 -> do
       -- traceShowM "push"
       push o
-      read3 pc >>= eval
+      read2 pc >>= eval
 
     -- if
     RibInt 4 -> do
@@ -313,8 +313,8 @@ eval pc = do
       tos <- popFast
       f <- falseRef <$> get
       if tos == f -- IORef Eq's instance is pointer equality.
-        then read3 pc >>= eval
-        else read2 pc >>= eval
+        then read2 pc >>= eval
+        else read1 pc >>= eval
 
     -- halt
     _ -> do
@@ -339,8 +339,8 @@ getCont = do
     go s = case s of
       RibInt _ -> error "getCont: Stack is not a Rib."
       r ->
-        read3 r >>= \case
-          RibInt _ -> read2 r >>= go
+        read2 r >>= \case
+          RibInt _ -> read1 r >>= go
           _ -> pure s
 
 createState :: IO (State, Rib)
