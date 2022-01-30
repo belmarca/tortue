@@ -12,4 +12,3 @@ main :: IO ()
 main = do
   (st, instructions) <- createState
   runReaderIO (eval instructions) st
-  exitSuccess

@@ -20,38 +20,6 @@ dummyState = do
   stackPtr <- newRef (RibInt 0)
   pure $ State stackPtr symbolTableRef (error "Forced true") (error "Forced false") (error "Forced nil")
 
-createState :: IO (State, Rib)
-createState = do
-  -- Creating a partial state to decode the instructions.
-  -- We just need a stack and the symbol table.
-  -- The global object references will be patched later.
-  initialSymbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
-  symbolTableRef <- newRef initialSymbolTable
-  stackPtr <- newRef (RibInt 0)
-  let state = State stackPtr symbolTableRef (error "Forced true") (error "Forced false") (error "Forced nil")
-
-  -- Decode instructions.
-  -- It would be nice if decoding wouldn't execute in ReaderIO State.
-  instr <- runReaderIO (decodeInstructions instructionsStr) state
-
-  -- Set global
-  setGlobal symbolTableRef "symbtl" =<< mkProc (RibInt 0) symbolTableRef -- primitive 0
-  falseRef <- setGlobal symbolTableRef "false" ribFalse
-  trueRef <- setGlobal symbolTableRef "true" ribTrue
-  nilRef <- setGlobal symbolTableRef "nil" ribNil
-
-  -- Restore symbol table pointer so we don't lose some entries.
-  -- This is because setGlobal sets the symbol table pointer to the cdr.
-  -- #### TODO: Does it break anything? ###
-  -- writeRef symbolTableRef initialSymbolTable
-
-  -- Replace stack with [0,0,[5,0,0]]:
-  -- primordial continuation which executes halt instruction.
-  halt1 <- mkObj (RibInt 0) (RibInt 5) (RibInt 0)
-  halt2 <- mkObj halt1 (RibInt 0) (RibInt 0)
-  writeRef stackPtr halt2
-  pure (State stackPtr symbolTableRef falseRef trueRef nilRef, instr)
-
 -- Helper functions
 
 car, cdr, dup, drop, inc, dec, mkRib :: ReaderIO State ()
