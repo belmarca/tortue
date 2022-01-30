@@ -60,8 +60,7 @@ instance Show Sexp where
 
 ribToSexp :: Rib -> ReaderIO State Sexp
 ribToSexp (RibInt n) = pure (SexpInt n)
-ribToSexp o@(RibObj r1 r2 r3) = do
-  printInstrRib o
+ribToSexp (RibObj r1 r2 r3) = do
   v1 <- recurse r1
   v2 <- recurse r2
   v3 <- recurse r3
