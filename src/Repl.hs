@@ -4,10 +4,11 @@ module Repl where
 import Prelude hiding (drop)
 
 import Control.Exception ( bracket )
-import Control.Monad (forM, forM_, replicateM, replicateM_)
+import Control.Monad (forM, forM_, replicateM, replicateM_, void)
 import Data.Char (chr)
 
 import Debug
+import Env
 import Rib
 import Utils
 import VM

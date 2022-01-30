@@ -15,7 +15,7 @@ import qualified Data.Vector as Vector
 
 import Utils
 import Rib
-import VM
+import Env
 
 -- Debugging functions
 

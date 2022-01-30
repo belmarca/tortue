@@ -10,6 +10,7 @@ import Data.IORef ( IORef )
 
 import Utils
 import Rib
+import Env
 
 import Debug.Trace
 
