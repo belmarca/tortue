@@ -45,6 +45,36 @@ testRibSymb = unsafePerformIO $ toRibSymbol "abc"
 testRibLst2 :: Rib
 testRibLst2 = unsafePerformIO $ toRibList [testRibStr, testRibSymb, ribNil]
 
+data Sexp = SexpName String | SexpInt Int | SexpLst Sexp Sexp Sexp
+  deriving (Eq)
+
+-- Permet d'écrire `n` plutôt que `SexpInt n` quand `n` est un
+-- entier litéral.
+instance Num Sexp where
+  fromInteger = SexpInt . fromInteger
+
+instance Show Sexp where
+  show (SexpName n) = n
+  show (SexpInt n) = show n
+  show (SexpLst s1 s2 s3) = show [s1, s2, s3]
+
+ribToSexp :: Rib -> ReaderIO State Sexp
+ribToSexp (RibInt n) = pure (SexpInt n)
+ribToSexp o@(RibObj r1 r2 r3) = do
+  printInstrRib o
+  v1 <- recurse r1
+  v2 <- recurse r2
+  v3 <- recurse r3
+  pure $ SexpLst v1 v2 v3
+  where
+    recurse r = do
+      st <- get
+      if stackRef st == r
+        then pure $ SexpName "stack"
+      else if symbolTableRef st == r
+        then pure $ SexpName "symbol table"
+      else readRef r >>= ribToSexp
+
 -- Convert the data rib to JSON
 -- For decoding instructions, see ribInstructionToJson
 ribDataToJson :: Rib -> ReaderIO State Aeson.Value
