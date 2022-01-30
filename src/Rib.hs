@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE Strict #-} -- Rend le langage strict pour de meilleures performances
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Rib where
 
