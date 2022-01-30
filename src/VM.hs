@@ -3,6 +3,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module VM where
 
+import Control.Monad
 import Data.Char ( ord, chr )
 import Data.Foldable ( foldrM )
 import Data.IORef ( IORef )

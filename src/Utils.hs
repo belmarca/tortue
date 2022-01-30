@@ -31,7 +31,7 @@ get = ReaderIO pure
 -- ces `a` pour obtenir une valeur de type b correspondante.
 instance Functor (ReaderIO r) where
   -- Signature: fmap :: (a -> b) -> ReaderIO r a -> ReaderIO r b
-  fmap f (ReaderIO r) = ReaderIO (\a -> fmap f (r a))
+  fmap f (ReaderIO r) = ReaderIO $ fmap f . r
 
 -- Applicative permet le séquencement d'opération sans branchement.
 instance Applicative (ReaderIO r) where
@@ -73,7 +73,3 @@ readRef = liftIO . readIORef
 
 writeRef :: MonadIO m => IORef a -> a -> m ()
 writeRef ref = liftIO . writeIORef ref
-
--- Ignore la valeur retournée par l'action
-void :: Monad m => m a -> m ()
-void = fmap (const ())
