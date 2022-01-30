@@ -141,8 +141,14 @@ ribInstructionToJson o@(RibObj tag v2 v3) = do
         RibInt 0 -> pure [Aeson.String "jump"]
 
         -- Call
+        -- TODO: Make encoding more compact
         v3' -> do
-          let instr = Aeson.String "call"
+          val <- readRef v2
+          instr <- case val of
+            RibInt n -> pure $ Aeson.String ("call: " <> pack (show n))
+            r -> do
+              obj <- ribDataToJson r
+              pure $ Aeson.object ["call" .= obj]
           rest <- ribInstructionToJson v3'
           pure $ instr : rest
 
@@ -165,7 +171,7 @@ ribInstructionToJson o@(RibObj tag v2 v3) = do
         RibInt n -> pure $ Aeson.String ("push: " <> pack (show n))
         r -> do
           obj <- ribDataToJson r
-          pure $ Aeson.object ["const" .= obj]
+          pure $ Aeson.object ["push" .= obj]
       rest <- readRef v3 >>= ribInstructionToJson
       pure $ instr : rest
 
