@@ -11,11 +11,10 @@ import Utils
 import Rib
 import Env
 
-import Debug.Trace
-
 inputStr :: String
-inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that prints HELLO!
--- inputStr = "Detouq,htgnel-gnirts,fer-gnirts,fi,!rdc-tes,tsil>-rotcev,!tes-gnirts,enifed,!tes-rotcev,?rotcev,=,cc/llac,!tes,adbmal,rddc,gnirts-ekam,fer-rotcev,htgnel-rotcev,rotcev-ekam,lobmys>-gnirts,gnirts>-lobmys,?erudecorp,!rac-tes,tneitouq,enilwen,ton,lave,fer-tsil,rdddac,*,?tcejbo-foe,?lobmys,lper,?gnirts,rotcev>-tsil,+,etirw,rahc-keep,yalpsid,tsil>-gnirts,daer,gnirts>-tsil,?lauqe,,,,?llun,htgnel,,,,,rddac,rdac,,-,,<,,rac,?riap,,rahc-daer,rdc,,snoc,,?vqe,,,,,;8K!K8K@Z%@YGZ#^'i$~YM^YC@PvCvR3y]#7#YS*^z!S*9Bi&:EiS/ai&kkz!S/:kw'k]@'_*Z@aC_G^~F^{!>'^8>YHlbC`^'`~?_G_~F_|]D9C`^Uka_CaG`.ZDdCbAai$G`^~F_|!S+#`kn5^~i$#`kn5^~i$#`kn5^~i$#`kn5^~RL^~?w)B^~?kH^~R^z]K#YS+a_l{]C#a_k#k_k~?iS/_{!.#b`n9DAd`Ca_#ZCex>#d~TbZBi&:EiS/NeZ@AAfi$i$akS_nM`~?x0^.:EgYOecEfNdboMa_~?x:^.ZKdUlbMbNa_~O?x6_9DAd`Ca_#ZCex>#d~TbZBi&:EiS/NeZ@AAfi$i$akS_nM`~?x0^.:EgYOecEfNdboMa_~?x:^.ZKdUlbMbNa_~O^~^?x1^#cMan~?x=^G_~F_#bUk``m~YL_|!93_@J^{]%3uy]?'i$9?C_@J^G^~F^z]I'i$'i$9IC^@YGG^~F^@JvC~F^z!E8EYS(^89vS7vF~Z(^9?YD^~YJ^8EZ)^~YL^3vL@ZIC^@YGG^@JvK~F^89vLvK~T^89vS;vF~?i%^89vS-vF~Z$^z!G8E^3vE@Z?i%YD^@JvE~YJ^z]O9O8@~?u^'^~Ik^Dy!@8@@D'^9O~?vR0^~I_vC'iS0~YM^YFy!?*V^@D'i&~OOIvD`*V^@D'i&~OO^~^?vL_*V^@D'i&~O^~^?vK^YFy]M*ZM^YC'i&@D~?vL^Wy!C9*`'^~^^YS%^YBAV^@D*Ai&YCx=@D~?vJ^8IYC'i%@D~?vS;^'i$@D~?vS-^YF@D~?vF^9M@D~?vK^'^~Ik^Wy!F'^!S-^Dy]H'^!S-iS.'^~?iS0^!S-^z!-9H^9HYS#~?iS.^'^~?iS0^iS-y!S-iS.!M(iS0^z]27%Z>'_@YS&Lc^@YS'Hc^BBZ>i$zBBZ>i$z]B#l`^{](Ql]+8IZLk^z]59Nb`H^|]-8P`H^{],i+]8i1!I#oS_^z]4Qo].8BZLvC^z]79Nb`H^|];8P`H^{]<i+!Di1!B#nS_^z!JQn]F'_'i$'i$9FKKvR%`YNbuC_~IvR/^~I_vR$G^~F^{]G9Fk^'i$~T^z!S%'i$4_k~^ZG^9GC^~?vPG^'i$~T^YD^z]E'^9E_`~IakAb^YHKYNu``vR%Z&u^{!S(8BZEi&^8BAZEi&K`kvP~Ik^z]3i(@YS)ki#!S,Bi#]P'^!S,AiS,^YS$^9PBa_'^~YA`B^H_~F_{]*9PiS,^z])i+!S$#m_i$z!LQm]J'`9JAca`Kl^~I_k|]L9Ji&`^{]A'^9AKl`C^~I`k{]N9'aZA`^|!P0ZA`^{!<'k8HSC_l~F^z!=(i&^z!O87B^z!76B^z]/+B^z!61B^z]9iS)]'iS'!,i+!0i1!*#k`^{!/Qk!A'i$'i$'i$'i$8ALaL_~YABaB_~YAHaH_~R`~R_'^~^?`^{]$(i$^z!:9>'i$(bL^~R^zz!S.Kmk!S0Klk!':lkl!):lkm!8:lkn]>:lko!;:lkp!1:lkq!+:lkr!5:lks!S':lkt!S):lku!S&:lkv.!(:lkv/!2:lkv0!H:lkv1!4:lkv2!N:lkv3]&:lkv4!S#:lkv5!3:lkv6y"
+-- inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that prints HELLO!
+-- RVM code that runs a REPL
+inputStr = "S=;1uAIX#ZN(j?!S'^z!S'i$](8S'YC9?AZ<AYK`yz!09(iS4y]?9?AZ<AYIZM^(i$~Z+^YLAYDvCvR3y]M7#ZL^z]L9%i&:CiS)ai&kkz!S):kw(k]&(_)Z&aB_F^~D^{!A(^8AYBlbB`^(`~>_F_~D_|]09/`^YAka_BaF`,Z0dBb@ai$F`^~D_|]G#`kn87^~i$#`kn87^~i$#`kn87^~i$#`kn87^~TN^~>w*L^~>kP^~T^z]B#ZGa_l{]/#a_k#k_k~>iS)_{!<,b,:SfBdbw*k~DBaF`^|!O,S:h-w2k,Sf~>iS)fd@aaa^}(]')i&^z].)Z'`^{]-)Z.b`^|!>)Z-ca_wS,|!,#b`n8Of@i&@bwS<awS<`90@ea_`~W_B`,ci$,cU@KdwS.@BEcwS/FEa,c@BEbwS/~>FEbwS9~DBa_~>wS.^,ci$,cI^,cIZ-U@KgwS+wS<wS<Z'Z.`wS<wS0~DKbEa~DBa_~>wS+^,ci%,cI^,cIUi$@KdwS8^~DKbEa~DBa_~>wS8^8OfKdE`F_`FE`~>wS0^8<cBa_~>wS/^#Z/ewC#d~VbZ%i&:SiS)KeZ&@@fi$i$akYH_nE`~>wS*^,:CgZ:ecCfYEdboEa_~>wS,^,ZBdYAlbEbYEa_~I>wS:_8Of@i&@bwS<awS<`90@ea_`~W_B`,ci$,cU@KdwS.@BEcwS/FEa,c@BEbwS/~>FEbwS9~DBa_~>wS.^,ci$,cI^,cIZ-U@KgwS+wS<wS<Z'Z.`wS<wS0~DKbEa~DBa_~>wS+^,ci%,cI^,cIUi$@KdwS8^~DKbEa~DBa_~>wS8^8OfKdE`F_`FE`~>wS0^8<cBa_~>wS/^#Z/ewC#d~VbZ%i&:SiS)KeZ&@@fi$i$akYH_nE`~>wS*^,:CgZ:ecCfYEdboEa_~>wS,^,ZBdYAlbEbYEa_~I^~^>wS(^#cEan~>wS7^F_~D_#bYAk``m~W_|!D1_AH^{]<1uy!:(i$8:aB_AH^8:aB_AH^AHvS#~I>vS#_8:aB_AH^8:aB_AH^AHvS#~I^~^>vE^8:aB_AHvS5AHvS#~>u^8:aB_AH^~Z)`F^~D^{]5(i$(i$95B^AYIF^~D^AHvC~D^z!K8KYS$^8DvS7vF~Z6^8IYS&^AHvF~Z8^8:i$Z1^~YG^8KZO^~W^1vLAZ5B^AYIF^AHvK~D^8DvLvK~V^8DvS;vF~>i%^8DvS-vF~Z)^z!I8K^1vEAQi%Z1^AHvE~YG^z]9999#~>u^(^~Ok^Jy]#9#AJ(^99~>vR0^~O_vC(iS-~Z+^Z,y!P8P@`^8P@a^8P@au~>vS5^J~>vS#^8S#_~>vE^(i&~Z+^Jz]$)Z$^AJ(i&~IIOvD`)Z$^AJ(i&~II^~^>vL_)Z$^AJ(i&~I^~^>vK^Z,y]=)Z=^YL(i&AJ~>vL^Z#y!L9J`(^~^^ZI^YJ@Z$^AJ8JYPi&AJ~>vE^)@i&YLwS7AJ~>vJ^9HYL(i%AJ~>vS;^(i$AJ~>vS-^Z,AJ~>vF^9=AJ~>vK^(^~Ok^Z#y],(^!S1^Jy]>(^!S1iS2(^~>iS-^!S1^z!39>^9>ZC~>iS2^(^~>iS-^iS1y!S1iS2]+'iS-^z]N07%YC(_AZPNc^AZDPc^LLYCi$zLLYCi$~Z6^z]%#l`^{]6YFl!S&089^~Z8^z]H#oYH_^z]8YFo]1089^~YG^z]4(i%(i$94B_~M^F^~D^z!J0#nYH_^~Z4^z!GYFn]7(_(i$(i$97RRvR%`YNbuB_~OvR/^~O_vR$F^~D^{]@97k^(i$~V^z]I0(i$8;_k~^Z@^9@B^~>vPF^(i$~V^Z1^~YG^z]*(^9*_`~Oak@b^YBRYNu``vR%ZFu^{!S$8JZ*i&^8J@Z*i&R`kvP~ZKk^z]K088`^~i$088`^~M_~M^{]F09A`^9(iS6~>k_~i$09A`^9(iS6~>k_~M_~M^{!S508N`^~i$08N`^~M_~M^{]308;`^~i$08;`^~M_~M^{!S308B`^~i$08B`^~M_~M^{!69)T^zAZEki#!S;Li#]2(^!S;@iS;^YS%^92La_(^~YM`L^P_~D_{]J092iS;^~YG^z]O05^~W^z!S%#m_i$z!@YFm];(_9;@aF_B^~D^{!S#9;i&^z!H(k8BYHB_l~D^z!?'i&^z]:8EB^z!E.B^z!4+B^z!./B^z!+05^~D^z!/089^~D^z!)#k`^{!-YFk!M(i$(i$(i$(i$8MPaP_~YMLaL_~YMNaN_~T`(i$~>pN_~T_(^~^>`^{])'i$^z!F8C(i$'bN^~T^zz]AjF!NiS5!;j3!BiS3!8jK!S4:nv1:k:k:k:k:k:k:k:k:k:k:k:k:k:ki&vS9vS6vS9vS9vS,vCvS,vS7vS@vS;vCvMvMvM!S2Z3mk!S-Z3lk!S6:nv2:k:k:k:k:k:k:k:k:k:k:k:k:k:k:ki&vR%vCvS@vS)vCvS,vS+vS0vS=vS0vS+vCvMvMvM!(:lkl!*:lkm!2:lkn!C:lko!=:lkp!9:lkq!5:lkr!7:lks]D:lkt]E:lku]P:lkv.!':lkv/]K:lkv0!S3:lkv1]3:lkv2!S5:lkv3]F:lkv4]C:lkv5!1:lkv6y" -- RVM code of the program
 
 emptySymbolsCount :: Int
 symbolTableStr, instructionsStr :: String
@@ -235,7 +234,6 @@ eval :: Rib -> ReaderIO State ()
 eval pc = do
   o <- read1 pc
   i <- read0 pc
-  stack <- stackRef <$> get
   case i of
     -- jump/call
     RibInt 0 -> do
@@ -244,18 +242,18 @@ eval pc = do
       c <- read0 o
       case c of -- if is_rib(c)
         RibRef r -> do
-          RibObj ir ir' ir2 <- readRef r
           c2 <- cons (RibInt 0) o -- c2=[0,o,0]
           RibInt arity <- read0 c -- nargs=c[0]
           s2 <- foldrM (\_ args -> pop >>= flip cons args) c2 [1..arity] -- while nargs:s2=[pop(),s2,0];nargs-=1
           read2 pc >>= \case -- if is_rib(pc[2])
             o@RibRef {} -> do -- call
+              stack <- stackRef <$> get
               write0 c2 stack -- c2[0]=stack
-              write2 c2 o        -- c2[2]=pc[2]
+              write2 c2 o     -- c2[2]=pc[2]
             RibInt n -> do -- jump
               k <- getCont          -- k=get_cont()
-              read0 k >>= write0 c2 -- c2[0]=k[0]
-              read2 k >>= write2 c2 -- c2[2]=k[2]
+              write0 c2 =<< read0 k -- c2[0]=k[0]
+              write2 c2 =<< read2 k -- c2[2]=k[2]
 
           st <- get
           set st {stackRef=s2} -- stack=s2
@@ -267,6 +265,7 @@ eval pc = do
             RibRef _ -> read2 pc >>= eval -- call. c=pc; pc=c[2]
             RibInt j -> do -- jump
               k <- getCont -- c=get_cont()
+              stack <- stackRef <$> get
               read0 k >>= write1 stack -- stack[1]=c[0]
               read2 k >>= eval
 
@@ -304,8 +303,6 @@ eval pc = do
     _ -> do
       -- traceShowM "HALT!"
       pure ()
-
-  -- printInstrRib pc
 
 getOpnd :: Rib -> ReaderIO State Rib
 getOpnd (RibInt n) = get >>= listTail n . stackRef
