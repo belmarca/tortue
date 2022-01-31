@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module Utils where
 
 import Data.IORef ( IORef, newIORef, readIORef, writeIORef )
@@ -18,11 +20,14 @@ import Data.IORef ( IORef, newIORef, readIORef, writeIORef )
 --        b. ReaderIO id: Retourne toujours le paramètre
 --        b. ReaderIO (\r -> do print r; getInt):
 --          Affiche le paramètre, retourne un int obtenu en faisant une opération IO.
-newtype ReaderIO r a = ReaderIO { runReaderIO :: r -> IO a }
+newtype ReaderIO r a = ReaderIO { runReaderIO :: r -> IO (r, a) }
 
 -- Cette action permet d'obtenir le paramètre.
 get :: ReaderIO r r
-get = ReaderIO pure
+get = ReaderIO (\s -> pure (s, s))
+
+set :: r -> ReaderIO r ()
+set s = ReaderIO (\_ -> pure (s, ()))
 
 -- Une Monad est un Applicative est un Functor.
 -- On doit donc définir une instance de Functor d'abord.
@@ -31,23 +36,24 @@ get = ReaderIO pure
 -- ces `a` pour obtenir une valeur de type b correspondante.
 instance Functor (ReaderIO r) where
   -- Signature: fmap :: (a -> b) -> ReaderIO r a -> ReaderIO r b
-  fmap f (ReaderIO r) = ReaderIO $ fmap f . r
+  fmap f (ReaderIO r) = ReaderIO $ \s ->
+    r s >>= \(s', a) -> pure (s', f a)
 
 -- Applicative permet le séquencement d'opération sans branchement.
 instance Applicative (ReaderIO r) where
   -- pure :: a -> ReaderT r m a
   -- pure retourne toujours la même valeur en ignorant le paramètre
-  pure a = ReaderIO $ \_ -> pure a
+  pure a = ReaderIO $ \s -> pure (s, a)
   -- (<*>) :: ReaderIO r m (a -> b) -> ReaderIO r m a -> ReaderIO r m b
-  (ReaderIO f) <*> (ReaderIO a) = ReaderIO $ \r -> do
-    f' <- f r    -- On exécute f :: IO (a -> b) qui nous donne f' :: a -> b
-    a' <- a r    -- Idem pour a :: IO a qui donne a' :: a
-    pure (f' a') -- On retourne l'application f' a'
+  (ReaderIO f) <*> (ReaderIO a) = ReaderIO $ \s -> do
+    (s', f') <- f s    -- On exécute f :: IO (a -> b) qui nous donne f' :: a -> b
+    (s'', a') <- a s'    -- Idem pour a :: IO a qui donne a' :: a
+    pure (s'', f' a') -- On retourne l'application f' a'
 
 instance Monad (ReaderIO r) where
   -- (>>=) :: m a -> (a -> m b) -> m b
-  (ReaderIO f) >>= cont = ReaderIO $ \r -> do
-    f r >>= flip runReaderIO r . cont
+  (ReaderIO f) >>= cont = ReaderIO $ \s -> do
+    f s >>= \(s', a) -> runReaderIO (cont a) s'
 
 -- Action permettant l'échec d'une action.
 -- On s'en sert ici quand on laisse un pattern match vide.
@@ -63,7 +69,7 @@ instance MonadIO IO where
   liftIO = id
 
 instance MonadIO (ReaderIO r) where
-  liftIO = ReaderIO . const
+  liftIO io = ReaderIO $ \s -> (s,) <$> io
 
 newRef :: MonadIO m => a -> m (IORef a)
 newRef = liftIO . newIORef

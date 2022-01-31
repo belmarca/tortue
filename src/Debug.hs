@@ -25,8 +25,13 @@ printRib r = liftIO . BS.putStrLn . Aeson.encodePretty =<< ribDataToJson r
 printInstrRib :: Rib -> ReaderIO State ()
 printInstrRib r = liftIO . BS.putStrLn . Aeson.encodePretty =<< ribInstructionToJson r
 
+printFirstInstrRib :: Rib -> ReaderIO State ()
+printFirstInstrRib r = liftIO . BS.putStrLn . Aeson.encodePretty . head =<< ribInstructionToJson r
+
 printRibList :: Rib -> ReaderIO State ()
-printRibList (RibObj car cdr _) = liftIO . BS.putStrLn . Aeson.encodePretty =<< decodeList car cdr
+printRibList (RibRef r) = do
+  RibObj car cdr _ <- readRef r
+  liftIO . BS.putStrLn . Aeson.encodePretty =<< decodeList car cdr
 printRibList r@(RibInt n) = printRib r
 
 {-# NOINLINE testRibLst #-}
@@ -45,7 +50,7 @@ testRibSymb = unsafePerformIO $ toRibSymbol "abc"
 testRibLst2 :: Rib
 testRibLst2 = unsafePerformIO $ toRibList [testRibStr, testRibSymb, ribNil]
 
-data Sexp = SexpName String | SexpInt Int | SexpLst Sexp Sexp Sexp
+data Sexp = SexpLoop Int | SexpInt Int | SexpLst Int Sexp Sexp Sexp
   deriving (Eq)
 
 -- Permet d'écrire `n` plutôt que `SexpInt n` quand `n` est un
@@ -54,32 +59,37 @@ instance Num Sexp where
   fromInteger = SexpInt . fromInteger
 
 instance Show Sexp where
-  show (SexpName n) = n
+  show (SexpLoop n) = "[...]" -- "#" <> show n
   show (SexpInt n) = show n
-  show (SexpLst s1 s2 s3) = show [s1, s2, s3]
+  show (SexpLst ix s1 s2 s3) = show [s1, s2, s3]
+    -- "[#" <> show ix <> "," <> drop 1 (show [s1, s2, s3])
 
-ribToSexp :: Rib -> ReaderIO State Sexp
-ribToSexp (RibInt n) = pure (SexpInt n)
-ribToSexp (RibObj r1 r2 r3) = do
-  v1 <- recurse r1
-  v2 <- recurse r2
-  v3 <- recurse r3
-  pure $ SexpLst v1 v2 v3
+ribToSexp :: MonadIO m => Rib -> m Sexp
+ribToSexp rib = do (_,_,sexp) <- go 0 [] rib; pure sexp
   where
-    recurse r = do
-      st <- get
-      if stackRef st == r
-        then pure $ SexpName "stack"
-      else if symbolTableRef st == r
-        then pure $ SexpName "symbol table"
-      else readRef r >>= ribToSexp
+    go :: MonadIO m => Int -> [(IORef RibObj, Int)] -> Rib -> m (Int, [(IORef RibObj, Int)], Sexp)
+    go i cycles (RibInt n) = pure (i, cycles, SexpInt n)
+    go i cycles (RibRef r) = do
+      RibObj r1 r2 r3 <- readRef r
+      let initial_i = i
+      (i, cycles, v1) <- recurse i cycles r1
+      (i, cycles, v2) <- recurse i cycles r2
+      (i, cycles, v3) <- recurse i cycles r3
+      pure (i, cycles, SexpLst initial_i v1 v2 v3)
+
+    recurse :: MonadIO m => Int -> [(IORef RibObj, Int)] -> Rib -> m (Int, [(IORef RibObj, Int)], Sexp)
+    recurse i cycles (RibInt n) = pure (i, cycles, SexpInt n)
+    recurse i cycles r@(RibRef ref) = do
+      case lookup ref cycles of
+        Nothing -> go (i + 1) ((ref,i):cycles) r
+        Just cycleId -> pure (i, cycles, SexpLoop cycleId)
 
 -- Convert the data rib to JSON
 -- For decoding instructions, see ribInstructionToJson
 ribDataToJson :: Rib -> ReaderIO State Aeson.Value
 ribDataToJson (RibInt n) = pure $ Aeson.Number (fromIntegral n)
-ribDataToJson o@(RibObj v1 v2 tag) = do
-  tag <- readRef tag
+ribDataToJson (RibRef r) = do
+  RibObj v1 v2 tag <- readRef r
   case tag of
     -- Pair
     RibInt 0 -> do
@@ -93,8 +103,8 @@ ribDataToJson o@(RibObj v1 v2 tag) = do
 
     -- Symbol
     RibInt 2 -> do
-      val  <- ribDataToJson =<< readRef v1
-      name <- ribDataToJson =<< readRef v2
+      val  <- ribDataToJson v1
+      name <- ribDataToJson v2
       pure $ addField name "_value" val
 
     -- String
@@ -112,17 +122,18 @@ ribDataToJson o@(RibObj v1 v2 tag) = do
 
     -- Unknown tag
     RibInt n -> do
-      u1 <- ribDataToJson =<< readRef v1
-      u2 <- ribDataToJson =<< readRef v2
+      u1 <- ribDataToJson v1
+      u2 <- ribDataToJson v2
       pure $ Aeson.object ["field0" .= u1, "field1" .= u2, "tag" .= n]
 
     -- Unknown object
-    RibObj t1 t2 t3 -> do
-      a  <- ribDataToJson =<< readRef v1
-      b  <- ribDataToJson =<< readRef v2
-      u1 <- ribDataToJson =<< readRef t1
-      u2 <- ribDataToJson =<< readRef t2
-      u3 <- ribDataToJson =<< readRef t3
+    RibRef r -> do
+      RibObj t1 t2 t3 <- readRef r
+      a  <- ribDataToJson v1
+      b  <- ribDataToJson v2
+      u1 <- ribDataToJson t1
+      u2 <- ribDataToJson t2
+      u3 <- ribDataToJson t3
       pure $ Aeson.object ["field0" .= u1, "field1" .= u2, "tag" .= Aeson.object ["tag0" .= u1, "tag1" .= u2, "tag2" .= u3]]
 
   where
@@ -132,19 +143,18 @@ ribDataToJson o@(RibObj v1 v2 tag) = do
 
 ribInstructionToJson :: Rib -> ReaderIO State [Aeson.Value]
 ribInstructionToJson (RibInt n) = pure [] -- pure [Aeson.Number (fromIntegral n)]
-ribInstructionToJson o@(RibObj tag v2 v3) = do
-  tag <- readRef tag
+ribInstructionToJson o@(RibRef r) = do
+  RibObj tag v2 v3 <- readRef r
   case tag of
     RibInt 0 -> do
-      readRef v3 >>= \case
+      case v3 of
         -- Jump
         RibInt 0 -> pure [Aeson.String "jump"]
 
         -- Call
         -- TODO: Make encoding more compact
         v3' -> do
-          val <- readRef v2
-          instr <- case val of
+          instr <- case v2 of
             RibInt n -> pure $ Aeson.String ("call: " <> pack (show n))
             r -> do
               obj <- ribDataToJson r
@@ -155,87 +165,85 @@ ribInstructionToJson o@(RibObj tag v2 v3) = do
     -- Set
     RibInt 1 -> do
       let instr = Aeson.String "set"
-      rest <- readRef v3 >>= ribInstructionToJson
+      rest <- ribInstructionToJson v3
       pure $ instr : rest
 
     -- Get
     RibInt 2 -> do
       let instr = Aeson.String "get"
-      rest <- readRef v3 >>= ribInstructionToJson
+      rest <- ribInstructionToJson v3
       pure $ instr : rest
 
     -- Const
     RibInt 3 -> do
-      val <- readRef v2
-      instr <- case val of
+      instr <- case v2 of
         RibInt n -> pure $ Aeson.String ("push: " <> pack (show n))
         r -> do
           obj <- ribDataToJson r
           pure $ Aeson.object ["push" .= obj]
-      rest <- readRef v3 >>= ribInstructionToJson
+      rest <- ribInstructionToJson v3
       pure $ instr : rest
 
     -- If
     RibInt 4 -> do
       let instr = Aeson.String "if"
-      rest <- readRef v3 >>= ribInstructionToJson
+      rest <- ribInstructionToJson v3
       pure $ instr : rest
 
     -- Halt
     RibInt 5 -> do
       let instr = Aeson.String "halt"
-      rest <- readRef v3 >>= ribInstructionToJson
+      rest <- ribInstructionToJson v3
       pure $ instr : rest
 
     -- Unknown instruction tag
     RibInt n -> do
-      val <- readRef v2 >>= ribDataToJson
+      val <- ribDataToJson v2
       let instr = Aeson.object ["instruction-code" .= n, "value" .= val]
-      rest <- readRef v3 >>= ribInstructionToJson
+      rest <- ribInstructionToJson v3
       pure $ instr : rest
 
     -- Misencoded instructions or data passing as an instruction
     tag -> do
       instr <- ribDataToJson o
-      rest <- readRef v3 >>= ribInstructionToJson
+      rest <- ribInstructionToJson v3
       pure $ instr : rest
 
-decodeList :: IORef Rib -> IORef Rib -> ReaderIO State [Aeson.Value]
+decodeList :: Rib -> Rib -> ReaderIO State [Aeson.Value]
 decodeList car cdr = do
-  carValue  <- ribDataToJson =<< readRef car
-  cdrValue  <- readRef cdr
-  cdrValues <- case cdrValue of
+  carValue  <- ribDataToJson car
+  cdrValues <- case cdr of
                 RibInt n -> do
                   -- Unexpected RibInt, improper list?
-                  v <- ribDataToJson cdrValue
+                  v <- ribDataToJson cdr
                   pure [v]
 
-                RibObj cadr cddr cdrTag -> readRef cdrTag >>= \case
-                  RibInt 5 -> pure [] -- Nil!
-                  RibInt 0 -> decodeList cadr cddr -- -- Continuing
-                  RibInt n -> error $ "Invalid Rib list. Unexpected tag: " <> show n
-                  -- Checking if it's the primordial continuation at the bottom of the stack
-                  RibObj v1 v2 v3 -> do
-                    a <- (,,) <$> readRef v1 <*> readRef v2 <*> readRef v3
-                    case a of
-                      (RibInt 5, RibInt 0, RibInt 0) -> pure ["##END_OF_STACK##"]
-                      _ -> error "Invalid Rib list. Tag can't be an object."
+                RibRef r -> do
+                  RibObj cadr cddr cdrTag <- readRef r
+                  case cdrTag of
+                    RibInt 5 -> pure [] -- Nil!
+                    RibInt 0 -> decodeList cadr cddr -- -- Continuing
+                    RibInt n -> error $ "Invalid Rib list. Unexpected tag: " <> show n
+                    -- Checking if it's the primordial continuation at the bottom of the stack
+                    RibRef r -> do
+                      RibObj v1 v2 v3 <- readRef r
+                      case (v1, v2, v3) of
+                        (RibInt 5, RibInt 0, RibInt 0) -> pure ["##END_OF_STACK##"]
+                        _ -> error "Invalid Rib list. Tag can't be an object."
   pure $ carValue : cdrValues
 
-decodeVector :: IORef Rib -> IORef Rib -> ReaderIO State (Int, [Aeson.Value]) -- Length and elements
-decodeVector elemsRef lengthRef = do
-  len <- readRef lengthRef
+decodeVector :: Rib -> Rib -> ReaderIO State (Int, [Aeson.Value]) -- Length and elements
+decodeVector elements len = do
   -- Length est bien un entier?
   case len of
     RibInt n -> do
-      elems <- readRef elemsRef
       -- Les éléments sont bien un objet?
-      case elems of
+      case elements of
         RibInt i -> error $ "Vector elems is not a list. Tag: " <> show i
-        RibObj v1 v2 elemsTag -> do
-          lstTag <- readRef elemsTag
+        RibRef r -> do
+          RibObj v1 v2 elemsTag <- readRef r
           -- Cet objet est bien une pair ou la liste vide?
-          case lstTag of
+          case elemsTag of
             -- Pair
             RibInt 0 -> (n,) <$> decodeList v1 v2
 
@@ -243,13 +251,13 @@ decodeVector elemsRef lengthRef = do
             RibInt 5 -> pure (0, [])
 
             RibInt n -> error $ "Vector elems is not a list. Tag: " <> show n
-            RibObj {} -> error "Vector elems is not a list. Its tag is an object."
+            RibRef {} -> error "Vector elems is not a list. Its tag is an object."
 
-    RibObj {} -> error "Vector length is not an int"
+    RibRef {} -> error "Vector length is not an int"
 
-decodeString :: IORef Rib -> IORef Rib -> ReaderIO State (Int, String)
-decodeString elemsRef lengthRef = do
-  (len, vals) <- decodeVector elemsRef lengthRef
+decodeString :: Rib -> Rib -> ReaderIO State (Int, String)
+decodeString elems len = do
+  (len, vals) <- decodeVector elems len
   let toChar = \case
         Aeson.Number n ->
           case floatingOrInteger n of
@@ -259,33 +267,35 @@ decodeString elemsRef lengthRef = do
   chars <- mapM toChar vals
   pure (len, chars)
 
-decodeProc :: IORef Rib -> IORef Rib -> ReaderIO State (Int, [Aeson.Value], [Aeson.Value])
-decodeProc codeRef envRef = do
-  (arity, codeVals) <- readRef codeRef >>= \case
+decodeProc :: Rib -> Rib -> ReaderIO State (Int, [Aeson.Value], [Aeson.Value])
+decodeProc code env = do
+  (arity, codeVals) <- case code of
     RibInt n -> pure (-1, [])
-    RibObj arityRef _unused codePtr -> do
-      readRef arityRef >>= \case
+    RibRef r -> do
+      RibObj arity _unused codePtr <- readRef r
+      case arity of
         RibInt arity -> do
-          codeVals <- readRef codePtr >>= ribInstructionToJson
+          codeVals <- ribInstructionToJson codePtr
           pure (arity, codeVals)
         _ -> error "Proc code arity is not an number."
 
   st <- get
-  env <- if stackRef st == envRef
+  env <- if stackRef st == env
           then pure [Aeson.String "stack"]
-         else if symbolTableRef st == envRef
+         else if symbolTableRef st == env
           then pure [Aeson.String "symbol table"]
-         else readRef envRef >>= \case
+         else case env of
           RibInt i -> pure []
-          RibObj car cdr lstTag ->
+          RibRef r -> do
+            RibObj car cdr lstTag <- readRef r
             -- Cet objet est bien une pair ou la liste vide?
-            readRef lstTag >>= \case
+            case lstTag of
               -- Pair
               RibInt 0 -> decodeList car cdr
 
               RibInt 5 -> pure [] -- Liste vide
               RibInt n -> error $ "Proc env is not a list. Tag: " <> show n
-              RibObj {} -> error "Proc env is not a list. Its tag is an object."
+              RibRef {} -> error "Proc env is not a list. Its tag is an object."
 
   pure (arity, codeVals, env)
 
@@ -293,12 +303,12 @@ printState :: ReaderIO State ()
 printState = do
   st <- get
   liftIO $ putStrLn "Stack:"
-  liftIO . print =<< ribToSexp =<< readRef (stackRef st)
+  liftIO . print =<< ribToSexp (stackRef st)
   liftIO $ putStrLn "Symbol table:"
-  liftIO . print =<< ribToSexp =<< readRef (symbolTableRef st)
+  liftIO . print =<< ribToSexp (symbolTableRef st)
 
 printStack :: ReaderIO State ()
 printStack = do
   st <- get
   liftIO $ putStrLn "Stack:"
-  liftIO . print =<< ribToSexp =<< readRef (stackRef st)
+  liftIO . print =<< ribToSexp (stackRef st)

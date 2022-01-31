@@ -15,10 +15,9 @@ import VM
 
 dummyState :: IO State
 dummyState = do
-  initialSymbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
-  symbolTableRef <- newRef initialSymbolTable
-  stackPtr <- newRef (RibInt 0)
-  pure $ State stackPtr symbolTableRef (error "Forced true") (error "Forced false") (error "Forced nil")
+  symbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
+  let stack = RibInt 0
+  pure $ State stack symbolTable ribFalse ribTrue ribNil
 
 -- Helper functions
 
@@ -195,14 +194,14 @@ prog = do
   progPrint -- Affiche "\n"
 
 -- Affiche le stack courant
-inspectStack :: ReaderIO State ()
-inspectStack = printRibList =<< readRef . stackRef =<< get
+-- inspectStack :: ReaderIO State ()
+-- inspectStack = printRibList =<< readRef . stackRef =<< get
 
 run :: IO ()
 run = void (createState >>= runReaderIO prog . fst)
 
 -- Affiche state après exécution.
 -- En cas d'exception, affiche le stack au moment de l'échec.
-runVerbose :: IO ()
-runVerbose = bracket createState (runReaderIO printState . fst) (runReaderIO prog . fst)
+-- runVerbose :: IO ()
+-- runVerbose = bracket createState (runReaderIO printState . fst) (runReaderIO prog . fst)
   -- void $ runWithState (prog >> printState)

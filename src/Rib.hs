@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, LambdaCase #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Rib where
 
@@ -11,62 +11,82 @@ import Utils ( writeRef, readRef, newRef, MonadIO )
 
 -- Rib Objects
 
-data Rib = RibInt Int | RibObj (IORef Rib) (IORef Rib) (IORef Rib)
+data Rib = RibInt Int | RibRef (IORef RibObj)
+  deriving (Eq)
+
+instance Show Rib where
+  show (RibInt n) = show n
+  show (RibRef _) = "ref"
+
+data RibObj = RibObj
+  { field0 :: Rib
+  , field1 :: Rib
+  , field2 :: Rib
+  }
+  deriving (Eq, Show)
 
 -- Typeclass permettant l'utilisation de mkObj sans avoir à toujours créer des
 -- IORef manuellement.
--- toRibRef permet la conversion d'une valeur de type a en IORef Rib par une action IO.
-class RibRef a where
-  toRibRef :: MonadIO m => a -> m (IORef Rib)
+-- toRib permet la conversion d'une valeur de type a en IORef Rib par une action IO.
+class ToRib a where
+  toRib :: MonadIO m => a -> m Rib
 
 -- Rien à faire, on a déjà un IORef Rib
-instance RibRef (IORef Rib) where
-  toRibRef = pure
+instance ToRib Rib where
+  toRib = pure
 
 -- On crée une référence pour le Rib
-instance RibRef Rib where
-  toRibRef = newRef
+instance ToRib RibObj where
+  toRib = fmap RibRef . newRef
 
 -- On wrap le Int dans RibInt et on crée une référence
-instance RibRef Int where
-  toRibRef = newRef . RibInt
+instance ToRib Int where
+  toRib = toRib . RibInt
 
 -- On convertit le char en RibInt et on crée une référence
-instance RibRef Char where
-  toRibRef = newRef . RibInt . ord
+instance ToRib Char where
+  toRib = toRib . RibInt . ord
 
-mkObj :: (RibRef a, RibRef b, RibRef c, MonadIO m) => a -> b -> c -> m Rib
-mkObj tag r1 r2 = RibObj <$> toRibRef r1 <*> toRibRef r2 <*> toRibRef tag
+mkObj :: (ToRib a, ToRib b, ToRib c, MonadIO m) => a -> b -> c -> m Rib
+mkObj tag r1 r2 = toRib =<< RibObj <$> toRib r1 <*> toRib r2 <*> toRib tag
 
-mkInstr :: (RibRef a, RibRef b, RibRef c, MonadIO m) => a -> b -> c -> m Rib
-mkInstr tag r1 r2 = RibObj <$> toRibRef tag <*> toRibRef r1 <*> toRibRef r2
+mkInstr :: (ToRib a, ToRib b, ToRib c, MonadIO m) => a -> b -> c -> m Rib
+mkInstr tag r1 r2 = toRib =<< RibObj <$> toRib tag <*> toRib r1 <*> toRib r2
+
+readN :: MonadIO m => (RibObj -> Rib) -> Rib -> m Rib
+readN f (RibRef r) = f <$> readRef r
+readN f (RibInt n) = error $ "readN: RibInt " <> show n <> " is not a pointer"
+
+writeN :: MonadIO m => (RibObj -> RibObj) -> Rib -> m ()
+writeN f (RibRef r) = readRef r >>= writeRef r . f
+writeN f (RibInt n) = error $ "writeN: RibInt " <> show n <> " is not a pointer"
 
 read0, read1, read2 :: MonadIO m => Rib -> m Rib
-read0 (RibObj v _ _) = readRef v
-read1 (RibObj _ v _) = readRef v
-read2 (RibObj _ _ v) = readRef v
+read0 = readN field0
+read1 = readN field1
+read2 = readN field2
 
 write0, write1, write2 :: MonadIO m => Rib -> Rib -> m ()
-write0 (RibObj v _ _) = writeRef v
-write1 (RibObj _ v _) = writeRef v
-write2 (RibObj _ _ v) = writeRef v
+write0 r v = writeN (\obj -> obj {field0 = v}) r
+write1 r v = writeN (\obj -> obj {field1 = v}) r
+write2 r v = writeN (\obj -> obj {field2 = v}) r
 
-mkPair :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
+mkPair :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
 mkPair = mkObj (0 :: Int)
 
-cons :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
+cons :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
 cons = mkPair
 
-mkProc :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
+mkProc :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
 mkProc = mkObj (1 :: Int)
 
-mkSymb :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
+mkSymb :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
 mkSymb = mkObj (2 :: Int)
 
-mkStr :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
+mkStr :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
 mkStr = mkObj (3 :: Int)
 
-mkVect :: (RibRef a, RibRef b, MonadIO m) => a -> b -> m Rib
+mkVect :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
 mkVect = mkObj (4 :: Int)
 
 mkSVal :: MonadIO m => m Rib
@@ -74,18 +94,19 @@ mkSVal = mkObj (5 :: Int) (RibInt 0) (RibInt 0) -- Don't care about zeroes
 
 {-# NOINLINE ribFalse #-}
 ribFalse :: Rib
-ribFalse = unsafePerformIO mkSVal
+ribFalse = unsafePerformIO (toRib =<< mkSVal)
 
 {-# NOINLINE ribTrue #-}
 ribTrue :: Rib
-ribTrue = unsafePerformIO mkSVal
+ribTrue = unsafePerformIO (toRib =<< mkSVal)
 
+{-# NOINLINE ribNil #-}
 ribNil :: Rib
-ribNil = unsafePerformIO mkSVal
+ribNil = unsafePerformIO (toRib =<< mkSVal)
 
--- Fonctions de conversion Haskell -> Rib
+-- -- Fonctions de conversion Haskell -> Rib
 
-toRibList :: (RibRef a, MonadIO m) => [a] -> m Rib
+toRibList :: (ToRib a, MonadIO m) => [a] -> m Rib
 toRibList = foldrM cons ribNil
 
 toRibString :: MonadIO m => String -> m Rib
