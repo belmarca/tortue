@@ -88,7 +88,7 @@ ribToSexp rib = do (_,_,sexp) <- go 0 [] rib; pure sexp
 -- For decoding instructions, see ribInstructionToJson
 ribDataToJson :: Rib -> ReaderIO State Aeson.Value
 ribDataToJson (RibInt n) = pure $ Aeson.Number (fromIntegral n)
-ribDataToJson (RibRef r) = do
+ribDataToJson o@(RibRef r) = do
   RibObj v1 v2 tag <- readRef r
   case tag of
     -- Pair
@@ -118,7 +118,15 @@ ribDataToJson (RibRef r) = do
       pure $ Aeson.object ["vector" .= lst, "length" .= len]
 
     -- Special value
-    RibInt 5 -> pure $ Aeson.String "#()#"
+    RibInt 5 -> do
+      st <- get
+      if falseRef st == o
+        then pure $ Aeson.String "#(false)#"
+      else if trueRef st == o
+        then pure $ Aeson.String "#(true)#"
+      else if nilRef st == o
+        then pure $ Aeson.String "#(nil)#"
+      else pure $ Aeson.String "#()#"
 
     -- Unknown tag
     RibInt n -> do
@@ -164,13 +172,21 @@ ribInstructionToJson o@(RibRef r) = do
 
     -- Set
     RibInt 1 -> do
-      let instr = Aeson.String "set"
+      instr <- case v2 of
+            RibInt n -> pure $ Aeson.object ["set" .= n]
+            o -> do
+              obj <- ribDataToJson o
+              pure $ Aeson.object ["set" .= obj]
       rest <- ribInstructionToJson v3
       pure $ instr : rest
 
     -- Get
     RibInt 2 -> do
-      let instr = Aeson.String "get"
+      instr <- case v2 of
+            RibInt n -> pure $ Aeson.object ["get" .= n]
+            o -> do
+              obj <- ribDataToJson o
+              pure $ Aeson.object ["get" .= obj]
       rest <- ribInstructionToJson v3
       pure $ instr : rest
 
