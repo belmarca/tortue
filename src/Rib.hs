@@ -2,12 +2,13 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Rib where
 
+import Control.Monad.IO.Class
 import Data.Char ( ord )
 import Data.Foldable ( foldrM )
 import Data.IORef ( IORef )
 import GHC.IO ( unsafePerformIO )
 
-import Utils ( writeRef, readRef, newRef, MonadIO )
+import Utils ( writeRef, readRef, newRef )
 
 -- Rib Objects
 

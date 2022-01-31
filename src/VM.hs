@@ -3,6 +3,7 @@
 module VM where
 
 import Control.Monad
+import Control.Monad.IO.Class
 import Data.Char ( ord, chr )
 import Data.Foldable ( foldrM )
 import Data.IORef ( IORef )

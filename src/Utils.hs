@@ -1,6 +1,8 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections, FlexibleInstances #-}
 
 module Utils where
+
+import Control.Monad.IO.Class
 
 import Data.IORef ( IORef, newIORef, readIORef, writeIORef )
 
@@ -62,11 +64,6 @@ instance MonadFail (ReaderIO r) where
   fail = liftIO . fail
 
 -- Pour faciliter l'utilisation d'action de type IO et ReaderIO.
-class Monad m => MonadIO m where
-  liftIO :: IO a -> m a
-
-instance MonadIO IO where
-  liftIO = id
 
 instance MonadIO (ReaderIO r) where
   liftIO io = ReaderIO $ \s -> (s,) <$> io

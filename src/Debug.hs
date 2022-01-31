@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase, OverloadedStrings, ScopedTypeVariables, TupleSections #-}
 module Debug where
 
+import Control.Monad.IO.Class
 import Data.Aeson ( KeyValue((.=)) )
 import Data.Char ( chr, ord )
 import Data.Text ( Text, pack )
