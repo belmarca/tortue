@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances, LambdaCase #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Rib where
 
@@ -12,7 +11,7 @@ import Utils ( writeRef, readRef, newRef )
 
 -- Rib Objects
 
-data Rib = RibInt Int | RibRef (IORef RibObj)
+data Rib = RibInt {-# UNPACK #-} !Int | RibRef {-# UNPACK #-} !(IORef RibObj)
   deriving (Eq)
 
 instance Show Rib where
@@ -20,9 +19,9 @@ instance Show Rib where
   show (RibRef _) = "ref"
 
 data RibObj = RibObj
-  { field0 :: Rib
-  , field1 :: Rib
-  , field2 :: Rib
+  { field0 :: !Rib
+  , field1 :: !Rib
+  , field2 :: !Rib
   }
   deriving (Eq, Show)
 
