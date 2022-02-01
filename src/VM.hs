@@ -72,7 +72,7 @@ prim3 f = (,,) <$> pop <*> pop <*> pop >>= f >>= push
 safeGetChar :: IO Int
 safeGetChar = fmap ord getChar `catchAny` const (return (-1))
 
-close :: SIO ()
+close :: Prim
 close = do
   v1 <- pop >>= read0
   getStack >>= mkProc v1 >>= push

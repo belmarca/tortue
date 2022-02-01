@@ -54,11 +54,6 @@ testRibLst2 = unsafePerformIO $ toRibList [testRibStr, testRibSymb, ribNil]
 data Sexp = SexpLoop Int | SexpInt Int | SexpLst Int Sexp Sexp Sexp
   deriving (Eq)
 
--- Permet d'écrire `n` plutôt que `SexpInt n` quand `n` est un
--- entier litéral.
-instance Num Sexp where
-  fromInteger = SexpInt . fromInteger
-
 instance Show Sexp where
   show (SexpLoop n) = "[...]" -- "#" <> show n
   show (SexpInt n) = show n

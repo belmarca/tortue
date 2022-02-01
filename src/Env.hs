@@ -14,6 +14,4 @@ getStack :: SIO Rib
 getStack = stackRef <$> get
 
 setStack :: Rib -> SIO ()
-setStack newStack = do
-  st <- get
-  set st {stackRef=newStack}
+setStack = set . State

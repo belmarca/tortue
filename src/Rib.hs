@@ -10,19 +10,13 @@ import Utils
 
 -- Rib Objects
 
-data Rib = RibInt {-# UNPACK #-} !Int | RibRef {-# UNPACK #-} !(IORef RibObj)
-  deriving (Eq)
-
-instance Show Rib where
-  show (RibInt n) = show n
-  show (RibRef _) = "ref"
+data Rib = RibInt {-# UNPACK #-} !Int | RibRef {-# UNPACK #-} !(IORef RibObj) deriving (Eq)
 
 data RibObj = RibObj
   { field0 :: !Rib
   , field1 :: !Rib
   , field2 :: !Rib
-  }
-  deriving (Eq, Show)
+  } deriving (Eq)
 
 -- Typeclass permettant l'utilisation de mkObj sans avoir à toujours créer des
 -- IORef manuellement.
@@ -70,37 +64,24 @@ write0 r v = writeN (\obj -> obj {field0 = v}) r
 write1 r v = writeN (\obj -> obj {field1 = v}) r
 write2 r v = writeN (\obj -> obj {field2 = v}) r
 
-mkPair :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
-mkPair = mkObj (0 :: Int)
-
-cons :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
-cons = mkPair
-
-mkProc :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
+cons, mkProc, mkSymb, mkStr, mkVect :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
+cons = mkObj (0 :: Int)
 mkProc = mkObj (1 :: Int)
-
-mkSymb :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
 mkSymb = mkObj (2 :: Int)
-
-mkStr :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
-mkStr = mkObj (3 :: Int)
-
-mkVect :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
+mkStr  = mkObj (3 :: Int)
 mkVect = mkObj (4 :: Int)
 
 mkSVal :: MonadIO m => m Rib
-mkSVal = mkObj (5 :: Int) (RibInt 0) (RibInt 0) -- Don't care about zeroes
+mkSVal = mkObj (RibInt 5) (RibInt 0) (RibInt 0) -- Don't care about zeroes
 
 {-# NOINLINE ribFalse #-}
-ribFalse :: Rib
+ribFalse, ribTrue, ribNil :: Rib
 ribFalse = unsafePerformIO (toRib =<< mkSVal)
 
 {-# NOINLINE ribTrue #-}
-ribTrue :: Rib
 ribTrue = unsafePerformIO (toRib =<< mkSVal)
 
 {-# NOINLINE ribNil #-}
-ribNil :: Rib
 ribNil = unsafePerformIO (toRib =<< mkSVal)
 
 -- -- Fonctions de conversion Haskell -> Rib
@@ -109,9 +90,7 @@ toRibList :: (ToRib a, MonadIO m) => [a] -> m Rib
 toRibList = foldrM cons ribNil
 
 toRibString :: MonadIO m => String -> m Rib
-toRibString chars = do
-  ribLst <- toRibList chars
-  mkStr ribLst (length chars)
+toRibString chars = toRibList chars >>= flip mkStr (length chars)
 
 toRibSymbol :: MonadIO m => String -> m Rib
-toRibSymbol chars = mkSymb (RibInt 0) =<< toRibString chars
+toRibSymbol = (=<<) (mkSymb (RibInt 0)) . toRibString
