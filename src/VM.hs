@@ -140,16 +140,15 @@ initialSymbolTable symTblStr emptySymCount = do
 
 -- Decoding RVM instructions
 
-symbolRef :: Int -> ReaderIO State Rib
-symbolRef n = do
-  symbolTable <- symbolTableRef <$> get
+symbolRef :: Rib -> Int -> ReaderIO State Rib
+symbolRef symbolTable n = do
   read0 =<< listTail n symbolTable
 
 listTail :: MonadIO m => Int -> Rib -> m Rib
 listTail = \case 0 -> pure; n -> read1 >=> listTail (n-1)
 
-decodeInstructions :: String -> ReaderIO State Rib
-decodeInstructions instrStr = do
+decodeInstructions :: Rib -> String -> ReaderIO State Rib
+decodeInstructions symbolTable instrStr = do
   let
       go :: String -> ReaderIO State Rib
       go [] = pop
@@ -181,10 +180,10 @@ decodeInstructions instrStr = do
                         then do
                           -- symbol_ref(get_int(n - d - 1))
                           let (rest', i) = readInt rest (n - d - 1)
-                          (rest',) <$> symbolRef i
+                          (rest',) <$> symbolRef symbolTable i
                         else if op < 3
                           -- symbol_ref(n)
-                        then (rest,) <$> symbolRef n
+                        then (rest,) <$> symbolRef symbolTable n
                         else pure (rest, RibInt n)
           n <- if 4 < op
             then do
@@ -213,12 +212,8 @@ decodeInstructions instrStr = do
 
   go instrStr
 
--- FIXME: We lose the elements of the symbol table.
--- It would be nice if they were kept and available to display when debugging.
--- For now, the symbol table reference is restored after the calls to setGlobal.
-setGlobal :: String -> Rib -> ReaderIO State () -- (IORef Rib)
-setGlobal gloName val = do
-  symbolTable <- symbolTableRef <$> get
+setGlobal :: Rib -> String -> Rib -> ReaderIO State Rib
+setGlobal symbolTable gloName val = do
   -- symtbl[0][0]=val
   symbolTableFst <- read0 symbolTable
   write0 symbolTableFst val
@@ -227,9 +222,7 @@ setGlobal gloName val = do
   -- Note: This is not in the python implementation
   write1 symbolTableFst =<< toRibString gloName
   -- symtbl=symtbl[1]
-  s1 <- read1 symbolTable
-  st <- get
-  set st {symbolTableRef=s1}
+  read1 symbolTable
 
 eval :: Rib -> ReaderIO State ()
 eval pc = do
@@ -294,9 +287,8 @@ eval pc = do
     RibInt 4 -> do
       -- traceShowM "if"
       tos <- pop
-      f <- falseRef <$> get
       -- IORef Eq's instance is pointer equality.
-      if tos == f
+      if tos == ribFalse
         then read2 pc >>= eval
         else read1 pc >>= eval
 
@@ -328,25 +320,17 @@ createState = do
   -- We just need a stack and the symbol table.
   -- The global object references will be patched later.
   symbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
-  let stack = RibInt 0
-      state = State stack symbolTable ribFalse ribTrue ribNil
 
   -- Decode instructions.
   -- It would be nice if decoding wouldn't execute in ReaderIO State.
-  flip runReaderIO state $ do
-    instr <- decodeInstructions instructionsStr
+  flip runReaderIO emptyState $ do
+    instr <- decodeInstructions symbolTable instructionsStr
 
-    -- Set global
-    setGlobal "symbtl" =<< mkProc (RibInt 0) symbolTable -- primitive 0
-    setGlobal "false" ribFalse
-    setGlobal "true" ribTrue
-    setGlobal "nil" ribNil
-
-    -- Restore symbol table pointer so we don't lose some entries.
-    -- This is because setGlobal sets the symbol table pointer to the cdr.
-    -- #### TODO: Does it break anything? ###
-    st <- get
-    set st {symbolTableRef=symbolTable}
+    -- Set globals
+    symbolTable' <- setGlobal symbolTable "symbtl" =<< mkProc (RibInt 0) symbolTable -- primitive 0
+    symbolTable'' <- setGlobal symbolTable' "false" ribFalse
+    symbolTable''' <- setGlobal symbolTable'' "true" ribTrue
+    setGlobal symbolTable''' "nil" ribNil
 
     -- Replace stack with [0,0,[5,0,0]]:
     -- primordial continuation which executes halt instruction.

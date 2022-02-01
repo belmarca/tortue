@@ -1,15 +1,9 @@
-{-# LANGUAGE LambdaCase #-}
 module Env where
 
 import Prelude
-import Data.IORef
-
 import Rib
 
-data State = State
-  { stackRef       :: Rib
-  , symbolTableRef :: Rib
-  , falseRef       :: Rib
-  , trueRef        :: Rib
-  , nilRef         :: Rib
-  }
+newtype State = State{ stackRef :: Rib }
+
+emptyState :: State
+emptyState=State(RibInt 0)

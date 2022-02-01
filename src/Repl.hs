@@ -13,12 +13,6 @@ import Rib
 import Utils
 import VM
 
-dummyState :: IO State
-dummyState = do
-  symbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
-  let stack = RibInt 0
-  pure $ State stack symbolTable ribFalse ribTrue ribNil
-
 -- Helper functions
 
 car, cdr, dup, drop, inc, dec, mkRib :: ReaderIO State ()

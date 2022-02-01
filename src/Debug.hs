@@ -121,11 +121,11 @@ ribDataToJson o@(RibRef r) = do
     -- Special value
     RibInt 5 -> do
       st <- get
-      if falseRef st == o
+      if ribFalse == o
         then pure $ Aeson.String "#(false)#"
-      else if trueRef st == o
+      else if ribTrue == o
         then pure $ Aeson.String "#(true)#"
-      else if nilRef st == o
+      else if ribNil == o
         then pure $ Aeson.String "#(nil)#"
       else pure $ Aeson.String "#()#"
 
@@ -299,8 +299,8 @@ decodeProc code env = do
   st <- get
   env <- if stackRef st == env
           then pure [Aeson.String "stack"]
-         else if symbolTableRef st == env
-          then pure [Aeson.String "symbol table"]
+        --  else if symbolTableRef st == env
+        --   then pure [Aeson.String "symbol table"]
          else case env of
           RibInt i -> pure []
           RibRef r -> do
@@ -318,14 +318,6 @@ decodeProc code env = do
 
 printState :: ReaderIO State ()
 printState = do
-  st <- get
-  liftIO $ putStrLn "Stack:"
-  liftIO . print =<< ribToSexp (stackRef st)
-  liftIO $ putStrLn "Symbol table:"
-  liftIO . print =<< ribToSexp (symbolTableRef st)
-
-printStack :: ReaderIO State ()
-printStack = do
   st <- get
   liftIO $ putStrLn "Stack:"
   liftIO . print =<< ribToSexp (stackRef st)

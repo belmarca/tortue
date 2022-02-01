@@ -2,9 +2,7 @@ module Main where
 
 import Prelude
 
-import Debug
--- import Repl
-import Rib
+import Env
 import Utils
 import VM
 
@@ -29,8 +27,7 @@ main = do
     ]
   where
     benchDecodeInstr str symTbl = do
-      state <- State <$> newRef ribNil <*> newRef symTbl
-      runReaderIO (decodeInstructions str) state
+      runReaderIO (decodeInstructions symTbl str) emptyState
 
 splitBytecode :: String -> (String, Int, String)
 splitBytecode inputStr =
