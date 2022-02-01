@@ -18,10 +18,11 @@ bundle:
 	echo "\nmodule Main where" >> $(out)
 
 	# Copy module imports
-	grep "import " $(utils) >> $(out) || true
-	grep "import " $(rib) >> $(out) || true
-	grep "import " $(vm) >> $(out) || true
 	grep "import " $(env) >> $(out) || true
+	grep "import " $(rib) >> $(out) || true
+	grep "import " $(utils) >> $(out) || true
+	grep "import " $(vm) >> $(out) || true
+	grep "import " $(main) >> $(out) || true
 
 	# Copy module bodies
 	echo "\n\n-- Utils" >> $(out)
@@ -39,6 +40,7 @@ bundle:
 	sed -i '/import Utils/d' $(out)
 	sed -i '/import Rib/d' $(out)
 	sed -i '/import Env/d' $(out)
+	sed -i '/import VM/d' $(out)
 
 clean:
 	rm dist/*
