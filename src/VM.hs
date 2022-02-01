@@ -3,7 +3,12 @@
 module VM where
 
 import Control.Monad
+<<<<<<< HEAD
+import Control.Exception
+import System.IO.Error
+=======
 import Control.Monad.IO.Class
+>>>>>>> e109d565fe70ed44324694f1ad3e8691411cf861
 import Data.Char ( ord, chr )
 import Data.Foldable ( foldrM )
 import Data.IORef ( IORef )
@@ -13,9 +18,7 @@ import Rib
 import Env
 
 inputStr :: String
--- inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that prints HELLO!
--- RVM code that runs a REPL
-inputStr = "S=;1uAIX#ZN(j?!S'^z!S'i$](8S'YC9?AZ<AYK`yz!09(iS4y]?9?AZ<AYIZM^(i$~Z+^YLAYDvCvR3y]M7#ZL^z]L9%i&:CiS)ai&kkz!S):kw(k]&(_)Z&aB_F^~D^{!A(^8AYBlbB`^(`~>_F_~D_|]09/`^YAka_BaF`,Z0dBb@ai$F`^~D_|]G#`kn87^~i$#`kn87^~i$#`kn87^~i$#`kn87^~TN^~>w*L^~>kP^~T^z]B#ZGa_l{]/#a_k#k_k~>iS)_{!<,b,:SfBdbw*k~DBaF`^|!O,S:h-w2k,Sf~>iS)fd@aaa^}(]')i&^z].)Z'`^{]-)Z.b`^|!>)Z-ca_wS,|!,#b`n8Of@i&@bwS<awS<`90@ea_`~W_B`,ci$,cU@KdwS.@BEcwS/FEa,c@BEbwS/~>FEbwS9~DBa_~>wS.^,ci$,cI^,cIZ-U@KgwS+wS<wS<Z'Z.`wS<wS0~DKbEa~DBa_~>wS+^,ci%,cI^,cIUi$@KdwS8^~DKbEa~DBa_~>wS8^8OfKdE`F_`FE`~>wS0^8<cBa_~>wS/^#Z/ewC#d~VbZ%i&:SiS)KeZ&@@fi$i$akYH_nE`~>wS*^,:CgZ:ecCfYEdboEa_~>wS,^,ZBdYAlbEbYEa_~I>wS:_8Of@i&@bwS<awS<`90@ea_`~W_B`,ci$,cU@KdwS.@BEcwS/FEa,c@BEbwS/~>FEbwS9~DBa_~>wS.^,ci$,cI^,cIZ-U@KgwS+wS<wS<Z'Z.`wS<wS0~DKbEa~DBa_~>wS+^,ci%,cI^,cIUi$@KdwS8^~DKbEa~DBa_~>wS8^8OfKdE`F_`FE`~>wS0^8<cBa_~>wS/^#Z/ewC#d~VbZ%i&:SiS)KeZ&@@fi$i$akYH_nE`~>wS*^,:CgZ:ecCfYEdboEa_~>wS,^,ZBdYAlbEbYEa_~I^~^>wS(^#cEan~>wS7^F_~D_#bYAk``m~W_|!D1_AH^{]<1uy!:(i$8:aB_AH^8:aB_AH^AHvS#~I>vS#_8:aB_AH^8:aB_AH^AHvS#~I^~^>vE^8:aB_AHvS5AHvS#~>u^8:aB_AH^~Z)`F^~D^{]5(i$(i$95B^AYIF^~D^AHvC~D^z!K8KYS$^8DvS7vF~Z6^8IYS&^AHvF~Z8^8:i$Z1^~YG^8KZO^~W^1vLAZ5B^AYIF^AHvK~D^8DvLvK~V^8DvS;vF~>i%^8DvS-vF~Z)^z!I8K^1vEAQi%Z1^AHvE~YG^z]9999#~>u^(^~Ok^Jy]#9#AJ(^99~>vR0^~O_vC(iS-~Z+^Z,y!P8P@`^8P@a^8P@au~>vS5^J~>vS#^8S#_~>vE^(i&~Z+^Jz]$)Z$^AJ(i&~IIOvD`)Z$^AJ(i&~II^~^>vL_)Z$^AJ(i&~I^~^>vK^Z,y]=)Z=^YL(i&AJ~>vL^Z#y!L9J`(^~^^ZI^YJ@Z$^AJ8JYPi&AJ~>vE^)@i&YLwS7AJ~>vJ^9HYL(i%AJ~>vS;^(i$AJ~>vS-^Z,AJ~>vF^9=AJ~>vK^(^~Ok^Z#y],(^!S1^Jy]>(^!S1iS2(^~>iS-^!S1^z!39>^9>ZC~>iS2^(^~>iS-^iS1y!S1iS2]+'iS-^z]N07%YC(_AZPNc^AZDPc^LLYCi$zLLYCi$~Z6^z]%#l`^{]6YFl!S&089^~Z8^z]H#oYH_^z]8YFo]1089^~YG^z]4(i%(i$94B_~M^F^~D^z!J0#nYH_^~Z4^z!GYFn]7(_(i$(i$97RRvR%`YNbuB_~OvR/^~O_vR$F^~D^{]@97k^(i$~V^z]I0(i$8;_k~^Z@^9@B^~>vPF^(i$~V^Z1^~YG^z]*(^9*_`~Oak@b^YBRYNu``vR%ZFu^{!S$8JZ*i&^8J@Z*i&R`kvP~ZKk^z]K088`^~i$088`^~M_~M^{]F09A`^9(iS6~>k_~i$09A`^9(iS6~>k_~M_~M^{!S508N`^~i$08N`^~M_~M^{]308;`^~i$08;`^~M_~M^{!S308B`^~i$08B`^~M_~M^{!69)T^zAZEki#!S;Li#]2(^!S;@iS;^YS%^92La_(^~YM`L^P_~D_{]J092iS;^~YG^z]O05^~W^z!S%#m_i$z!@YFm];(_9;@aF_B^~D^{!S#9;i&^z!H(k8BYHB_l~D^z!?'i&^z]:8EB^z!E.B^z!4+B^z!./B^z!+05^~D^z!/089^~D^z!)#k`^{!-YFk!M(i$(i$(i$(i$8MPaP_~YMLaL_~YMNaN_~T`(i$~>pN_~T_(^~^>`^{])'i$^z!F8C(i$'bN^~T^zz]AjF!NiS5!;j3!BiS3!8jK!S4:nv1:k:k:k:k:k:k:k:k:k:k:k:k:k:ki&vS9vS6vS9vS9vS,vCvS,vS7vS@vS;vCvMvMvM!S2Z3mk!S-Z3lk!S6:nv2:k:k:k:k:k:k:k:k:k:k:k:k:k:k:ki&vR%vCvS@vS)vCvS,vS+vS0vS=vS0vS+vCvMvMvM!(:lkl!*:lkm!2:lkn!C:lko!=:lkp!9:lkq!5:lkr!7:lks]D:lkt]E:lku]P:lkv.!':lkv/]K:lkv0!S3:lkv1]3:lkv2!S5:lkv3]F:lkv4]C:lkv5!1:lkv6y" -- RVM code of the program
+inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that prints HELLO!
 
 emptySymbolsCount :: Int
 symbolTableStr, instructionsStr :: String
@@ -106,7 +109,7 @@ primitives = zipWith decorator [0..]
   , prim2 $ \(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 - r2)                       -- sub
   , prim2 $ \(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 * r2)                       -- mult
   , prim2 $ \(RibInt r1) (RibInt r2) -> pure $ RibInt (div r1 r2)                     -- quotient
-  , liftIO getChar >>= push . RibInt . ord                                            -- getChar
+  , liftIO getChar' >>= push . RibInt                                            -- getChar
   , prim1 (\r@(RibInt v) -> liftIO (putChar (chr v)) >> pure r)                       -- putChar
   -- , prim1 (\c -> push c >> pure c)  -- Duplicate top element. Not a regular RVM primitive, but useful in Repl.hs
   ]
@@ -355,3 +358,8 @@ createState = do
     st <- get
     set st {stackRef=halt2}
     pure instr
+
+getChar' :: IO Int
+getChar' = (ord <$> getChar) `catch` eofHandler
+  where
+    eofHandler e = if isEOFError e then return (-1) else return (-2)
