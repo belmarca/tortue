@@ -42,23 +42,20 @@ type Prim = ReaderIO State ()
 
 push :: ToRib a => a -> ReaderIO State ()
 push v = do
-  stack <- stackRef <$> get
+  stack <- getStack
   -- Cons v to top of stack
   newStack <- cons v stack
   -- Update stack reference to point to new top of stack
-  st <- get
-  set st {stackRef=newStack}
+  setStack newStack
 
 pop :: ReaderIO State Rib
 pop = do
-  stack <- stackRef <$> get
-  case stack of
+  getStack >>= \case
     RibInt _ -> error "Empty stack"
     RibRef r ->
       readRef r >>= \(RibObj top rest _) -> do
         -- Update stack reference to point to rest of stack
-        st <- get
-        set st {stackRef=rest}
+        setStack rest
         -- Return value
         pure top
 
@@ -79,7 +76,7 @@ safeGetChar = fmap ord getChar `catchAny` const (return (-1))
 close :: ReaderIO State ()
 close = do
   v1 <- pop >>= read0
-  get >>= mkProc v1 . stackRef >>= push
+  getStack >>= mkProc v1 >>= push
 
 primitives :: [Prim]
 primitives =
@@ -150,7 +147,7 @@ decodeInstructions symbolTable instrStr = do
         if c > 90
         then do
           tos <- pop
-          stack <- stackRef <$> get
+          stack <- getStack
           read0 stack >>=
             mkInstr (op - 1) tos >>=
               write0 stack
@@ -182,7 +179,7 @@ decodeInstructions symbolTable instrStr = do
               mkInstr b (RibInt 0) (RibInt 1)
             else pure n
 
-          stack <- stackRef <$> get
+          stack <- getStack
           case stack of
             RibInt i -> read0 n >>= read2 -- End: pc = n[0][2]
             RibRef r -> do
@@ -231,7 +228,7 @@ eval pc = do
           s2 <- foldrM (\_ args -> pop >>= flip cons args) c2 [1..arity] -- while nargs:s2=[pop(),s2,0];nargs-=1
           read2 pc >>= \case -- if is_rib(pc[2])
             o@RibRef {} -> do -- call
-              stack <- stackRef <$> get
+              stack <- getStack
               write0 c2 stack -- c2[0]=stack
               write2 c2 o     -- c2[2]=pc[2]
             RibInt n -> do -- jump
@@ -239,8 +236,7 @@ eval pc = do
               write0 c2 =<< read0 k -- c2[0]=k[0]
               write2 c2 =<< read2 k -- c2[2]=k[2]
 
-          st <- get
-          set st {stackRef=s2} -- stack=s2
+          setStack s2 -- stack=s2
           read2 c >>= eval -- pc=c[2] & loop
 
         RibInt n -> do
@@ -249,7 +245,7 @@ eval pc = do
             RibRef _ -> read2 pc >>= eval -- call. c=pc; pc=c[2]
             RibInt j -> do -- jump
               k <- getCont -- c=get_cont()
-              stack <- stackRef <$> get
+              stack <- getStack
               read0 k >>= write1 stack -- stack[1]=c[0]
               read2 k >>= eval
 
@@ -288,21 +284,21 @@ eval pc = do
       pure ()
 
 getOpnd :: Rib -> ReaderIO State Rib
-getOpnd (RibInt n) = get >>= listTail n . stackRef
+getOpnd (RibInt n) = getStack >>= listTail n
 getOpnd o = pure o
 
 -- Look at stack until it finds the continuation rib. The continuation rib is
 -- the first rib of the stack that doesn't have an Int as its tag.
 getCont :: ReaderIO State Rib
 getCont = do
-  get >>= go . stackRef
+  getStack >>= go
   where
-    go s = case s of
+    go = \case
       RibInt _ -> error "getCont: Stack is not a Rib."
       r ->
         read2 r >>= \case
           RibInt _ -> read1 r >>= go
-          _ -> pure s
+          _ -> pure r
 
 createState :: IO (State, Rib)
 createState = do
@@ -326,6 +322,5 @@ createState = do
     -- primordial continuation which executes halt instruction.
     halt1 <- mkObj (RibInt 0) (RibInt 5) (RibInt 0)
     halt2 <- mkObj halt1 (RibInt 0) (RibInt 0)
-    st <- get
-    set st {stackRef=halt2}
+    setStack halt2
     pure instr

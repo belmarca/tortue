@@ -296,8 +296,8 @@ decodeProc code env = do
           pure (arity, codeVals)
         _ -> error "Proc code arity is not an number."
 
-  st <- get
-  env <- if stackRef st == env
+  stack <- getStack
+  env <- if stack == env
           then pure [Aeson.String "stack"]
         --  else if symbolTableRef st == env
         --   then pure [Aeson.String "symbol table"]
@@ -318,6 +318,5 @@ decodeProc code env = do
 
 printState :: ReaderIO State ()
 printState = do
-  st <- get
   liftIO $ putStrLn "Stack:"
-  liftIO . print =<< ribToSexp (stackRef st)
+  liftIO . print =<< ribToSexp =<< getStack

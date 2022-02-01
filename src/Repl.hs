@@ -123,7 +123,7 @@ listReverse = do  -- [list]
           swap            -- [acc, 0, list]
           push ca         -- [car, acc, 0, list]
           mkRib           -- [car : acc, list]
-          -- liftIO . printRibList =<< readRef . stackRef =<< get
+          -- printRibList =<< getStack
           swap            -- [list, car : acc]
           cdr             -- [cdr list, car : acc]
           go              -- start over
@@ -186,10 +186,6 @@ prog = do
   progPrint -- Affiche le nom
   push =<< toRibString "\n"
   progPrint -- Affiche "\n"
-
--- Affiche le stack courant
--- inspectStack :: ReaderIO State ()
--- inspectStack = printRibList =<< readRef . stackRef =<< get
 
 run :: IO ()
 run = void (createState >>= runReaderIO prog . fst)
