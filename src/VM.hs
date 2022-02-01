@@ -12,15 +12,6 @@ import Utils
 import Rib
 import Env
 
--- inputStr :: String -- Debug
-inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that prints HELLO!
-
--- emptySymbolsCount :: Int -- Debug
--- symbolTableStr, instructionsStr :: String -- Debug
-((symbolTableStr, emptySymbolsCount), instructionsStr) =
-  let (start, end) = span (/= ';') inputStr
-  in (readInt start 0, drop 1 end)
-
 -- Reading input
 
 -- Positive numbers outside [0,45] are encoded using a variable length encoding.
@@ -234,8 +225,10 @@ getCont = getStack >>= go
         RibInt _ -> read1 r >>= go
         _ -> pure r
 
--- createState :: IO (State, Rib) -- Debug
-createState = do
+-- createState :: String -> IO (State, Rib) -- Debug
+createState programStr = do
+  let (start, end) = span (/= ';') programStr
+      ((symbolTableStr, emptySymbolsCount), instructionsStr) = (readInt start 0, drop 1 end)
   -- Creating a partial state to decode the instructions.
   -- We just need a stack and the symbol table.
   -- The global object references will be patched later.

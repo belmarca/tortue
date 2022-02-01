@@ -186,8 +186,8 @@ prog = do
   push =<< toRibString "\n"
   progPrint -- Affiche "\n"
 
-run :: IO ()
-run = void (createState >>= runReaderIO prog . fst)
+-- run :: IO ()
+-- run = void (createState >>= runReaderIO prog . fst)
 
 -- Affiche state après exécution.
 -- En cas d'exception, affiche le stack au moment de l'échec.
