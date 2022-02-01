@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 module Rib where
 
 import Control.Monad.IO.Class
@@ -40,42 +40,42 @@ instance ToRib Int where
 instance ToRib Char where
   toRib = toRib . RibInt . ord
 
-mkObj :: (ToRib a, ToRib b, ToRib c, MonadIO m) => a -> b -> c -> m Rib
+-- mkObj :: (ToRib a, ToRib b, ToRib c, MonadIO m) => a -> b -> c -> m Rib -- Debug
 mkObj tag r1 r2 = toRib =<< RibObj <$> toRib r1 <*> toRib r2 <*> toRib tag
 
-mkInstr :: (ToRib a, ToRib b, ToRib c, MonadIO m) => a -> b -> c -> m Rib
+-- mkInstr :: (ToRib a, ToRib b, ToRib c, MonadIO m) => a -> b -> c -> m Rib -- Debug
 mkInstr tag r1 r2 = toRib =<< RibObj <$> toRib tag <*> toRib r1 <*> toRib r2
 
-readN :: MonadIO m => (RibObj -> Rib) -> Rib -> m Rib
+-- readN :: MonadIO m => (RibObj -> Rib) -> Rib -> m Rib -- Debug
 readN f (RibRef r) = f <$> readRef r
 readN f (RibInt n) = error $ "readN: RibInt " <> show n <> " is not a pointer"
 
-writeN :: MonadIO m => (RibObj -> RibObj) -> Rib -> m ()
+-- writeN :: MonadIO m => (RibObj -> RibObj) -> Rib -> m () -- Debug
 writeN f (RibRef r) = readRef r >>= writeRef r . f
 writeN f (RibInt n) = error $ "writeN: RibInt " <> show n <> " is not a pointer"
 
-read0, read1, read2 :: MonadIO m => Rib -> m Rib
+-- read0, read1, read2 :: MonadIO m => Rib -> m Rib -- Debug
 read0 = readN field0
 read1 = readN field1
 read2 = readN field2
 
-write0, write1, write2 :: MonadIO m => Rib -> Rib -> m ()
+-- write0, write1, write2 :: MonadIO m => Rib -> Rib -> m () -- Debug
 write0 r v = writeN (\obj -> obj {field0 = v}) r
 write1 r v = writeN (\obj -> obj {field1 = v}) r
 write2 r v = writeN (\obj -> obj {field2 = v}) r
 
-cons, mkProc, mkSymb, mkStr, mkVect :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib
+-- cons, mkProc, mkSymb, mkStr, mkVect :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib -- Debug
 cons = mkObj (0 :: Int)
 mkProc = mkObj (1 :: Int)
 mkSymb = mkObj (2 :: Int)
 mkStr  = mkObj (3 :: Int)
 mkVect = mkObj (4 :: Int)
 
-mkSVal :: MonadIO m => m Rib
+-- mkSVal :: MonadIO m => m Rib -- Debug
 mkSVal = mkObj (RibInt 5) (RibInt 0) (RibInt 0) -- Don't care about zeroes
 
 {-# NOINLINE ribFalse #-}
-ribFalse, ribTrue, ribNil :: Rib
+-- ribFalse, ribTrue, ribNil :: Rib -- Debug
 ribFalse = unsafePerformIO (toRib =<< mkSVal)
 
 {-# NOINLINE ribTrue #-}
@@ -84,13 +84,13 @@ ribTrue = unsafePerformIO (toRib =<< mkSVal)
 {-# NOINLINE ribNil #-}
 ribNil = unsafePerformIO (toRib =<< mkSVal)
 
--- -- Fonctions de conversion Haskell -> Rib
+-- Fonctions de conversion Haskell -> Rib
 
-toRibList :: (ToRib a, MonadIO m) => [a] -> m Rib
+-- toRibList :: (ToRib a, MonadIO m) => [a] -> m Rib -- Debug
 toRibList = foldrM cons ribNil
 
-toRibString :: MonadIO m => String -> m Rib
+-- toRibString :: MonadIO m => String -> m Rib -- Debug
 toRibString chars = toRibList chars >>= flip mkStr (length chars)
 
-toRibSymbol :: MonadIO m => String -> m Rib
+-- toRibSymbol :: MonadIO m => String -> m Rib -- Debug
 toRibSymbol = (=<<) (mkSymb (RibInt 0)) . toRibString

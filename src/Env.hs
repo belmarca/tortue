@@ -7,11 +7,11 @@ newtype State = State { stackRef :: Rib }
 
 type SIO = StateIO State
 
-emptyState :: State
-emptyState=State(RibInt 0)
+-- emptyState :: State -- Debug
+emptyState = State (RibInt 0)
 
-getStack :: SIO Rib
+-- getStack :: SIO Rib -- Debug
 getStack = stackRef <$> get
 
-setStack :: Rib -> SIO ()
+-- setStack :: Rib -> SIO () -- Debug
 setStack = set . State

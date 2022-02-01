@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections, NoMonomorphismRestriction #-}
 
 module Utils where
 
@@ -9,10 +9,10 @@ import Data.IORef
 newtype StateIO r a = StateIO { runReaderIO :: r -> IO (r, a) }
 
 -- Cette action permet d'obtenir le paramètre.
-get :: StateIO r r
+-- get :: StateIO r r -- Debug
 get = StateIO (\s -> pure (s, s))
 
-set :: r -> StateIO r ()
+-- set :: r -> StateIO r () -- Debug
 set s = StateIO (\_ -> pure (s, ()))
 
 -- Une Monad est un Applicative est un Functor.
@@ -43,11 +43,11 @@ instance MonadFail (StateIO r) where fail = liftIO . fail
 
 instance MonadIO (StateIO r) where liftIO m = StateIO $ \s -> (s,) <$> m
 
-newRef :: MonadIO m => a -> m (IORef a)
+-- newRef :: MonadIO m => a -> m (IORef a) -- Debug
 newRef = liftIO . newIORef
 
-readRef :: MonadIO m => IORef a -> m a
+-- readRef :: MonadIO m => IORef a -> m a -- Debug
 readRef = liftIO . readIORef
 
-writeRef :: MonadIO m => IORef a -> a -> m ()
+-- writeRef :: MonadIO m => IORef a -> a -> m () -- Debug
 writeRef ref = liftIO . writeIORef ref

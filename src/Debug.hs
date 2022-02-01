@@ -35,22 +35,6 @@ printRibList (RibRef r) = do
   liftIO . BS.putStrLn . Aeson.encodePretty =<< decodeList car cdr
 printRibList r@(RibInt n) = printRib r
 
-{-# NOINLINE testRibLst #-}
-testRibLst :: Rib
-testRibLst = unsafePerformIO $ toRibList [ord 'a', 4, 3, 2, 1]
-
-{-# NOINLINE testRibStr #-}
-testRibStr :: Rib
-testRibStr = unsafePerformIO $ toRibString "abc"
-
-{-# NOINLINE testRibSymb #-}
-testRibSymb :: Rib
-testRibSymb = unsafePerformIO $ toRibSymbol "abc"
-
-{-# NOINLINE testRibLst2 #-}
-testRibLst2 :: Rib
-testRibLst2 = unsafePerformIO $ toRibList [testRibStr, testRibSymb, ribNil]
-
 data Sexp = SexpLoop Int | SexpInt Int | SexpLst Int Sexp Sexp Sexp
   deriving (Eq)
 

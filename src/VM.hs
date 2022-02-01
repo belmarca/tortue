@@ -12,11 +12,11 @@ import Utils
 import Rib
 import Env
 
-inputStr :: String
+-- inputStr :: String -- Debug
 inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that prints HELLO!
 
-emptySymbolsCount :: Int
-symbolTableStr, instructionsStr :: String
+-- emptySymbolsCount :: Int -- Debug
+-- symbolTableStr, instructionsStr :: String -- Debug
 ((symbolTableStr, emptySymbolsCount), instructionsStr) =
   let (start, end) = span (/= ';') inputStr
   in (readInt start 0, drop 1 end)
@@ -27,7 +27,7 @@ symbolTableStr, instructionsStr :: String
 -- If the number is encoded in k characters (codes), the first k-1 are in
 -- [46, 91] and the k^th code is in [0,45] to mark the end of the number.
 -- The codes encode the number in base-46, and are interpreted modulo 46.
-readInt :: String -> Int -> (String, Int)
+-- readInt :: String -> Int -> (String, Int) -- Debug
 readInt [] n = ([], n)
 readInt (x:xs) n =
   let v = ord x - 35
@@ -39,7 +39,7 @@ readInt (x:xs) n =
 
 type Prim = SIO ()
 
-push :: ToRib a => a -> SIO ()
+-- push :: ToRib a => a -> SIO () -- Debug
 push v = do
   stack <- getStack
   -- Cons v to top of stack
@@ -47,7 +47,7 @@ push v = do
   -- Update stack reference to point to new top of stack
   setStack newStack
 
-pop :: SIO Rib
+-- pop :: SIO Rib -- Debug
 pop = do
   getStack >>= \case
     RibInt _ -> error "Empty stack"
@@ -60,24 +60,24 @@ pop = do
 
 -- Primitives
 
-prim1 :: (Rib -> SIO Rib) -> Prim
+-- prim1 :: (Rib -> SIO Rib) -> Prim -- Debug
 prim1 f = pop >>= f >>= push
 
-prim2 :: (Rib -> Rib -> SIO Rib) -> Prim
+-- prim2 :: (Rib -> Rib -> SIO Rib) -> Prim -- Debug
 prim2 f = flip (,) <$> pop <*> pop >>= uncurry f >>= push
 
-prim3 :: ((Rib,Rib,Rib) -> SIO Rib) -> Prim
+-- prim3 :: ((Rib,Rib,Rib) -> SIO Rib) -> Prim -- Debug
 prim3 f = (,,) <$> pop <*> pop <*> pop >>= f >>= push
 
-safeGetChar :: IO Int
+-- safeGetChar :: IO Int -- Debug
 safeGetChar = fmap ord getChar `catchAny` const (return (-1))
 
-close :: Prim
+-- close :: Prim -- Debug
 close = do
   v1 <- pop >>= read0
   getStack >>= mkProc v1 >>= push
 
-primitives :: [Prim]
+-- primitives :: [Prim] -- Debug
 primitives =
   [ prim3 (\(c,b,a) -> toRib $ RibObj a b c)                                          -- rib object constructor
   , prim1 pure                                                                        -- id
@@ -108,7 +108,7 @@ primitives =
 -- Initializing symbol table
 
 -- Définition alternative de initialSymbolTable plus idiomatique.
-initialSymbolTable :: String -> Int -> IO Rib
+-- initialSymbolTable :: String -> Int -> IO Rib -- Debug
 initialSymbolTable symTblStr emptySymCount = do
   let symbolStrings = splitOnCommas symTblStr
       -- On ajoute les symboles sans string
@@ -126,17 +126,17 @@ initialSymbolTable symTblStr emptySymCount = do
 
 -- Decoding RVM instructions
 
-symbolRef :: Rib -> Int -> SIO Rib
+-- symbolRef :: Rib -> Int -> SIO Rib -- Debug
 symbolRef symbolTable n = do
   read0 =<< listTail n symbolTable
 
-listTail :: MonadIO m => Int -> Rib -> m Rib
+-- listTail :: MonadIO m => Int -> Rib -> m Rib -- Debug
 listTail = \case 0 -> pure; n -> read1 >=> listTail (n-1)
 
-decodeInstructions :: Rib -> String -> SIO Rib
+-- decodeInstructions :: Rib -> String -> SIO Rib -- Debug
 decodeInstructions symbolTable instrStr = do
   let
-      go :: String -> SIO Rib
+      -- go :: String -> SIO Rib -- Debug
       go [] = pop
       go (x:rest) = do
         -- First code tells us the operand
@@ -198,7 +198,7 @@ decodeInstructions symbolTable instrStr = do
 
   go instrStr
 
-setGlobal :: Rib -> String -> Rib -> SIO Rib
+-- setGlobal :: Rib -> String -> Rib -> SIO Rib -- Debug
 setGlobal symbolTable gloName val = do
   -- symtbl[0][0]=val
   symbolTableFst <- read0 symbolTable
@@ -210,7 +210,7 @@ setGlobal symbolTable gloName val = do
   -- symtbl=symtbl[1]
   read1 symbolTable
 
-eval :: Rib -> SIO ()
+-- eval :: Rib -> SIO () -- Debug
 eval pc = do
   o <- read1 pc
   i <- read0 pc
@@ -282,13 +282,13 @@ eval pc = do
       -- traceShowM "HALT!"
       pure ()
 
-getOpnd :: Rib -> SIO Rib
+-- getOpnd :: Rib -> SIO Rib -- Debug
 getOpnd (RibInt n) = getStack >>= listTail n
 getOpnd o = pure o
 
 -- Look at stack until it finds the continuation rib. The continuation rib is
 -- the first rib of the stack that doesn't have an Int as its tag.
-getCont :: SIO Rib
+-- getCont :: SIO Rib -- Debug
 getCont = do
   getStack >>= go
   where
@@ -299,7 +299,7 @@ getCont = do
           RibInt _ -> read1 r >>= go
           _ -> pure r
 
-createState :: IO (State, Rib)
+-- createState :: IO (State, Rib) -- Debug
 createState = do
   -- Creating a partial state to decode the instructions.
   -- We just need a stack and the symbol table.

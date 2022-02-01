@@ -13,7 +13,7 @@ bundle:
 	cp rvm.hs.in $(out)
 
 	# Add Haskell extensions
-	echo "{-# LANGUAGE LambdaCase, TupleSections #-}" >> $(out)
+	echo "{-# LANGUAGE LambdaCase, TupleSections, NoMonomorphismRestriction, Strict #-}" >> $(out)
 
 	echo "\nmodule Main where" >> $(out)
 
