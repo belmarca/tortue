@@ -38,9 +38,9 @@ readInt (x:xs) n =
 
 -- VM environment
 
-type Prim = ReaderIO State ()
+type Prim = SIO ()
 
-push :: ToRib a => a -> ReaderIO State ()
+push :: ToRib a => a -> SIO ()
 push v = do
   stack <- getStack
   -- Cons v to top of stack
@@ -48,7 +48,7 @@ push v = do
   -- Update stack reference to point to new top of stack
   setStack newStack
 
-pop :: ReaderIO State Rib
+pop :: SIO Rib
 pop = do
   getStack >>= \case
     RibInt _ -> error "Empty stack"
@@ -61,19 +61,19 @@ pop = do
 
 -- Primitives
 
-prim1 :: (Rib -> ReaderIO State Rib) -> Prim
+prim1 :: (Rib -> SIO Rib) -> Prim
 prim1 f = pop >>= f >>= push
 
-prim2 :: (Rib -> Rib -> ReaderIO State Rib) -> Prim
+prim2 :: (Rib -> Rib -> SIO Rib) -> Prim
 prim2 f = flip (,) <$> pop <*> pop >>= uncurry f >>= push
 
-prim3 :: ((Rib,Rib,Rib) -> ReaderIO State Rib) -> Prim
+prim3 :: ((Rib,Rib,Rib) -> SIO Rib) -> Prim
 prim3 f = (,,) <$> pop <*> pop <*> pop >>= f >>= push
 
 safeGetChar :: IO Int
 safeGetChar = fmap ord getChar `catchAny` const (return (-1))
 
-close :: ReaderIO State ()
+close :: SIO ()
 close = do
   v1 <- pop >>= read0
   getStack >>= mkProc v1 >>= push
@@ -127,17 +127,17 @@ initialSymbolTable symTblStr emptySymCount = do
 
 -- Decoding RVM instructions
 
-symbolRef :: Rib -> Int -> ReaderIO State Rib
+symbolRef :: Rib -> Int -> SIO Rib
 symbolRef symbolTable n = do
   read0 =<< listTail n symbolTable
 
 listTail :: MonadIO m => Int -> Rib -> m Rib
 listTail = \case 0 -> pure; n -> read1 >=> listTail (n-1)
 
-decodeInstructions :: Rib -> String -> ReaderIO State Rib
+decodeInstructions :: Rib -> String -> SIO Rib
 decodeInstructions symbolTable instrStr = do
   let
-      go :: String -> ReaderIO State Rib
+      go :: String -> SIO Rib
       go [] = pop
       go (x:rest) = do
         -- First code tells us the operand
@@ -199,7 +199,7 @@ decodeInstructions symbolTable instrStr = do
 
   go instrStr
 
-setGlobal :: Rib -> String -> Rib -> ReaderIO State Rib
+setGlobal :: Rib -> String -> Rib -> SIO Rib
 setGlobal symbolTable gloName val = do
   -- symtbl[0][0]=val
   symbolTableFst <- read0 symbolTable
@@ -211,7 +211,7 @@ setGlobal symbolTable gloName val = do
   -- symtbl=symtbl[1]
   read1 symbolTable
 
-eval :: Rib -> ReaderIO State ()
+eval :: Rib -> SIO ()
 eval pc = do
   o <- read1 pc
   i <- read0 pc
@@ -283,13 +283,13 @@ eval pc = do
       -- traceShowM "HALT!"
       pure ()
 
-getOpnd :: Rib -> ReaderIO State Rib
+getOpnd :: Rib -> SIO Rib
 getOpnd (RibInt n) = getStack >>= listTail n
 getOpnd o = pure o
 
 -- Look at stack until it finds the continuation rib. The continuation rib is
 -- the first rib of the stack that doesn't have an Int as its tag.
-getCont :: ReaderIO State Rib
+getCont :: SIO Rib
 getCont = do
   getStack >>= go
   where
@@ -308,7 +308,7 @@ createState = do
   symbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
 
   -- Decode instructions.
-  -- It would be nice if decoding wouldn't execute in ReaderIO State.
+  -- It would be nice if decoding wouldn't execute in SIO.
   flip runReaderIO emptyState $ do
     instr <- decodeInstructions symbolTable instructionsStr
 

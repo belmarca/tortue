@@ -20,16 +20,16 @@ import Env
 
 -- Debugging functions
 
-printRib :: Rib -> ReaderIO State ()
+printRib :: Rib -> SIO ()
 printRib r = liftIO . BS.putStrLn . Aeson.encodePretty =<< ribDataToJson r
 
-printInstrRib :: Rib -> ReaderIO State ()
+printInstrRib :: Rib -> SIO ()
 printInstrRib r = liftIO . BS.putStrLn . Aeson.encodePretty =<< ribInstructionToJson r
 
-printFirstInstrRib :: Rib -> ReaderIO State ()
+printFirstInstrRib :: Rib -> SIO ()
 printFirstInstrRib r = liftIO . BS.putStrLn . Aeson.encodePretty . head =<< ribInstructionToJson r
 
-printRibList :: Rib -> ReaderIO State ()
+printRibList :: Rib -> SIO ()
 printRibList (RibRef r) = do
   RibObj car cdr _ <- readRef r
   liftIO . BS.putStrLn . Aeson.encodePretty =<< decodeList car cdr
@@ -87,7 +87,7 @@ ribToSexp rib = do (_,_,sexp) <- go 0 [] rib; pure sexp
 
 -- Convert the data rib to JSON
 -- For decoding instructions, see ribInstructionToJson
-ribDataToJson :: Rib -> ReaderIO State Aeson.Value
+ribDataToJson :: Rib -> SIO Aeson.Value
 ribDataToJson (RibInt n) = pure $ Aeson.Number (fromIntegral n)
 ribDataToJson o@(RibRef r) = do
   RibObj v1 v2 tag <- readRef r
@@ -150,7 +150,7 @@ ribDataToJson o@(RibRef r) = do
     addField :: Aeson.Value -> Text -> Aeson.Value -> Aeson.Value
     addField (Aeson.Object obj) key val = Aeson.Object $ Map.insert key val obj
 
-ribInstructionToJson :: Rib -> ReaderIO State [Aeson.Value]
+ribInstructionToJson :: Rib -> SIO [Aeson.Value]
 ribInstructionToJson (RibInt n) = pure [] -- pure [Aeson.Number (fromIntegral n)]
 ribInstructionToJson o@(RibRef r) = do
   RibObj tag v2 v3 <- readRef r
@@ -226,7 +226,7 @@ ribInstructionToJson o@(RibRef r) = do
       rest <- ribInstructionToJson v3
       pure $ instr : rest
 
-decodeList :: Rib -> Rib -> ReaderIO State [Aeson.Value]
+decodeList :: Rib -> Rib -> SIO [Aeson.Value]
 decodeList car cdr = do
   carValue  <- ribDataToJson car
   cdrValues <- case cdr of
@@ -249,7 +249,7 @@ decodeList car cdr = do
                         _ -> error "Invalid Rib list. Tag can't be an object."
   pure $ carValue : cdrValues
 
-decodeVector :: Rib -> Rib -> ReaderIO State (Int, [Aeson.Value]) -- Length and elements
+decodeVector :: Rib -> Rib -> SIO (Int, [Aeson.Value]) -- Length and elements
 decodeVector elements len = do
   -- Length est bien un entier?
   case len of
@@ -272,7 +272,7 @@ decodeVector elements len = do
 
     RibRef {} -> error "Vector length is not an int"
 
-decodeString :: Rib -> Rib -> ReaderIO State (Int, String)
+decodeString :: Rib -> Rib -> SIO (Int, String)
 decodeString elems len = do
   (len, vals) <- decodeVector elems len
   let toChar = \case
@@ -284,7 +284,7 @@ decodeString elems len = do
   chars <- mapM toChar vals
   pure (len, chars)
 
-decodeProc :: Rib -> Rib -> ReaderIO State (Int, [Aeson.Value], [Aeson.Value])
+decodeProc :: Rib -> Rib -> SIO (Int, [Aeson.Value], [Aeson.Value])
 decodeProc code env = do
   (arity, codeVals) <- case code of
     RibInt n -> pure (-1, [])
@@ -316,7 +316,7 @@ decodeProc code env = do
 
   pure (arity, codeVals, env)
 
-printState :: ReaderIO State ()
+printState :: SIO ()
 printState = do
   liftIO $ putStrLn "Stack:"
   liftIO . print =<< ribToSexp =<< getStack

@@ -15,7 +15,7 @@ import VM
 
 -- Helper functions
 
-car, cdr, dup, drop, inc, dec, mkRib :: ReaderIO State ()
+car, cdr, dup, drop, inc, dec, mkRib :: SIO ()
 car   = callPrim 6
 cdr   = callPrim 7
 dup   = callPrim 19
@@ -25,21 +25,21 @@ dec   = push (RibInt 1) >> swap >> callPrim 14
 mkRib = callPrim 0
 
 -- Swap 2 top elements of the stack
-swap :: ReaderIO State ()
+swap :: SIO ()
 swap = do
   tos1 <- pop
   tos2 <- pop
   push tos1
   push tos2
 
-callPrim :: Int -> ReaderIO State ()
+callPrim :: Int -> SIO ()
 callPrim primCode =
   primitives !! primCode
 
 -- Basic functions
 
 -- Affiche un string Haskell
-progTrace :: String -> ReaderIO State ()
+progTrace :: String -> SIO ()
 progTrace msg = do
   -- On pousse le message en ordre inverse
   forM_ (reverse msg) push
@@ -47,12 +47,12 @@ progTrace msg = do
   replicateM_ (length msg) (callPrim 18 >> drop)
 
 -- Affiche un string rib
-progPrint :: ReaderIO State ()
+progPrint :: SIO ()
 progPrint = do
   car -- get chars
   printChars
   where
-    printChars :: ReaderIO State ()
+    printChars :: SIO ()
     printChars = do
       dup -- duplicate pair
       pair <- pop
@@ -70,7 +70,7 @@ progPrint = do
           printChars  -- start over
 
 -- Traverse la liste sur le TOS et empile sa longueur sur le stack
-listLength :: ReaderIO State ()
+listLength :: SIO ()
 listLength = do
   -- acc = -1 because we count the first indirection even if it's not part of the list
   push (RibInt (-1)) --
@@ -81,7 +81,7 @@ listLength = do
   -- Remove list from stack
   drop
   where
-    go :: ReaderIO State ()
+    go :: SIO ()
     go = do
       dup -- duplicate pair
       pair <- pop -- Move copy of pair to register
@@ -98,14 +98,14 @@ listLength = do
           cdr -- get cdr (rest of list)
           go  -- start over
 
-listReverse :: ReaderIO State ()
+listReverse :: SIO ()
 listReverse = do  -- [list]
   push ribNil     -- acc = ribNil [acc, list]
   swap            -- [list, acc]
   go              -- [list, acc]
   drop            -- [acc]
   where
-    go :: ReaderIO State ()
+    go :: SIO ()
     go = do
       dup         -- duplicate pair [list, list, acc]
       pair <- pop -- Move copy of pair to register [list, acc]
@@ -128,13 +128,13 @@ listReverse = do  -- [list]
           cdr             -- [cdr list, car : acc]
           go              -- start over
 
-askInput :: ReaderIO State ()
+askInput :: SIO ()
 askInput = do
   askChars
   listReverse
   packString
 
-packString :: ReaderIO State ()
+packString :: SIO ()
 packString = do
   -- Place tag at bottom
   push (RibInt 3)
@@ -147,12 +147,12 @@ packString = do
   -- Pack string
   mkRib
 
-askChars :: ReaderIO State ()
+askChars :: SIO ()
 askChars = do
   push ribNil -- Initialize list of characters [acc]
   go
   where
-    go :: ReaderIO State ()
+    go :: SIO ()
     go = do
       callPrim 17         -- getChar [char, acc]
       RibInt code <- pop  -- [acc]
@@ -169,7 +169,7 @@ askChars = do
 -- Program
 
 -- To run program, use `run` or `runVerbose` functions.
-prog :: ReaderIO State ()
+prog :: SIO ()
 prog = do
   progTrace "HELLO, WORLD!\n"
 

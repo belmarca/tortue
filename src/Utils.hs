@@ -6,67 +6,67 @@ import Control.Monad.IO.Class
 
 import Data.IORef ( IORef, newIORef, readIORef, writeIORef )
 
--- ReaderIO permet de modéliser le passage de paramètre constant, similaire au
+-- StateIO permet de modéliser le passage de paramètre constant, similaire au
 -- dependency injection.
 -- En Haskell, cela est fait en prenant comme argument le paramètre (de type r)
 -- et en le passant à la continuation.
--- Pour s'aider à l'utiliser, on donne une instance Monad à ReaderIO.
+-- Pour s'aider à l'utiliser, on donne une instance Monad à StateIO.
 -- Comment lire la signature de type:
 --  r est le type du paramètre
 --  a est le type de retour
 -- Exemple:
---   1. `ReaderIO Int Int` représente une action qui prend Int en entrée et retourne un Int.
+--   1. `StateIO Int Int` représente une action qui prend Int en entrée et retourne un Int.
 --      De plus, il peut faire de l'IO.
 --      Exemple d'action avec ce type:
 --        a. pure 5: Retourne toujours 5
---        b. ReaderIO id: Retourne toujours le paramètre
---        b. ReaderIO (\r -> do print r; getInt):
+--        b. StateIO id: Retourne toujours le paramètre
+--        b. StateIO (\r -> do print r; getInt):
 --          Affiche le paramètre, retourne un int obtenu en faisant une opération IO.
-newtype ReaderIO r a = ReaderIO { runReaderIO :: r -> IO (r, a) }
+newtype StateIO r a = StateIO { runReaderIO :: r -> IO (r, a) }
 
 -- Cette action permet d'obtenir le paramètre.
-get :: ReaderIO r r
-get = ReaderIO (\s -> pure (s, s))
+get :: StateIO r r
+get = StateIO (\s -> pure (s, s))
 
-set :: r -> ReaderIO r ()
-set s = ReaderIO (\_ -> pure (s, ()))
+set :: r -> StateIO r ()
+set s = StateIO (\_ -> pure (s, ()))
 
 -- Une Monad est un Applicative est un Functor.
 -- On doit donc définir une instance de Functor d'abord.
 -- Functor est la généralisation de la fonction map sur les listes.
 -- Un foncteur f "contenant" des valeurs de type `a` permet de mapper chacun de
 -- ces `a` pour obtenir une valeur de type b correspondante.
-instance Functor (ReaderIO r) where
-  -- Signature: fmap :: (a -> b) -> ReaderIO r a -> ReaderIO r b
-  fmap f (ReaderIO r) = ReaderIO $ \s ->
+instance Functor (StateIO r) where
+  -- Signature: fmap :: (a -> b) -> StateIO r a -> StateIO r b
+  fmap f (StateIO r) = StateIO $ \s ->
     r s >>= \(s', a) -> pure (s', f a)
 
 -- Applicative permet le séquencement d'opération sans branchement.
-instance Applicative (ReaderIO r) where
+instance Applicative (StateIO r) where
   -- pure :: a -> ReaderT r m a
   -- pure retourne toujours la même valeur en ignorant le paramètre
-  pure a = ReaderIO $ \s -> pure (s, a)
-  -- (<*>) :: ReaderIO r m (a -> b) -> ReaderIO r m a -> ReaderIO r m b
-  (ReaderIO f) <*> (ReaderIO a) = ReaderIO $ \s -> do
+  pure a = StateIO $ \s -> pure (s, a)
+  -- (<*>) :: StateIO r m (a -> b) -> StateIO r m a -> StateIO r m b
+  (StateIO f) <*> (StateIO a) = StateIO $ \s -> do
     (s', f') <- f s    -- On exécute f :: IO (a -> b) qui nous donne f' :: a -> b
     (s'', a') <- a s'    -- Idem pour a :: IO a qui donne a' :: a
     pure (s'', f' a') -- On retourne l'application f' a'
 
-instance Monad (ReaderIO r) where
+instance Monad (StateIO r) where
   -- (>>=) :: m a -> (a -> m b) -> m b
-  (ReaderIO f) >>= cont = ReaderIO $ \s -> do
+  (StateIO f) >>= cont = StateIO $ \s -> do
     f s >>= \(s', a) -> runReaderIO (cont a) s'
 
 -- Action permettant l'échec d'une action.
 -- On s'en sert ici quand on laisse un pattern match vide.
-instance MonadFail (ReaderIO r) where
-  -- fail :: String -> ReaderIO r a
+instance MonadFail (StateIO r) where
+  -- fail :: String -> StateIO r a
   fail = liftIO . fail
 
--- Pour faciliter l'utilisation d'action de type IO et ReaderIO.
+-- Pour faciliter l'utilisation d'action de type IO et StateIO.
 
-instance MonadIO (ReaderIO r) where
-  liftIO io = ReaderIO $ \s -> (s,) <$> io
+instance MonadIO (StateIO r) where
+  liftIO io = StateIO $ \s -> (s,) <$> io
 
 newRef :: MonadIO m => a -> m (IORef a)
 newRef = liftIO . newIORef

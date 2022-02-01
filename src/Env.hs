@@ -6,13 +6,15 @@ import Utils
 
 newtype State = State { stackRef :: Rib }
 
+type SIO = StateIO State
+
 emptyState :: State
 emptyState=State(RibInt 0)
 
-getStack :: ReaderIO State Rib
+getStack :: SIO Rib
 getStack = stackRef <$> get
 
-setStack :: Rib -> ReaderIO State ()
+setStack :: Rib -> SIO ()
 setStack newStack = do
   st <- get
   set st {stackRef=newStack}
