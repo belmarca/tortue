@@ -30,9 +30,7 @@ inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that pr
 -- readInt :: String -> Int -> (String, Int) -- Debug
 readInt [] n = ([], n)
 readInt (x:xs) n =
-  let v = ord x - 35
-      c = if v < 0 then 57 else v -- error "Bad code, less than 35" else v -- python returns 57 instead of error
-      n' = n * 46
+  let v = ord x - 35; c = if v < 0 then 57 else v; n' = n * 46
   in if c < 46 then (xs, n' + v) else readInt xs (n' + v - 46)
 
 -- VM environment
@@ -40,23 +38,12 @@ readInt (x:xs) n =
 type Prim = SIO ()
 
 -- push :: ToRib a => a -> SIO () -- Debug
-push v = do
-  stack <- getStack
-  -- Cons v to top of stack
-  newStack <- cons v stack
-  -- Update stack reference to point to new top of stack
-  setStack newStack
+push v = getStack >>= cons v >>= setStack
 
 -- pop :: SIO Rib -- Debug
-pop = do
-  getStack >>= \case
-    RibInt _ -> error "Empty stack"
-    RibRef r ->
-      readRef r >>= \(RibObj top rest _) -> do
-        -- Update stack reference to point to rest of stack
-        setStack rest
-        -- Return value
-        pure top
+pop = getStack >>= \case
+  RibRef r -> readRef r >>= \(RibObj top rest _) -> setStack rest >> pure top
+  -- RibInt _ -> error "Empty stack" -- Debug
 
 -- Primitives
 
@@ -109,26 +96,18 @@ primitives =
 
 -- Définition alternative de initialSymbolTable plus idiomatique.
 -- initialSymbolTable :: String -> Int -> IO Rib -- Debug
-initialSymbolTable symTblStr emptySymCount = do
-  let symbolStrings = splitOnCommas symTblStr
-      -- On ajoute les symboles sans string
-      symbolStringsWithEmpty = replicate emptySymCount "" <> symbolStrings
-  -- Pour chaque symbole, on encode son string en Rib
-  symbolStringRibs <- mapM toRibSymbol symbolStringsWithEmpty
-  -- On encode la liste dans l'ordre inverse
-  toRibList (reverse symbolStringRibs)
-  where
-    -- Brise le string sur les virgules
-    splitOnCommas xs =
-      case span (/= ',') xs of
-        (sym, "") -> [reverse sym]
-        (sym, rest) -> reverse sym : splitOnCommas (drop 1 rest)
+initialSymbolTable symTblStr emptySymCount =
+  toRibList . reverse =<< mapM toRibSymbol (replicate emptySymCount "" <> splitOnCommas symTblStr)
+
+-- splitOnCommas :: String -> [String] -- Debug
+splitOnCommas xs = case span (/= ',') xs of
+  (sym, "") -> [reverse sym]
+  (sym, rest) -> reverse sym : splitOnCommas (drop 1 rest)
 
 -- Decoding RVM instructions
 
 -- symbolRef :: Rib -> Int -> SIO Rib -- Debug
-symbolRef symbolTable n = do
-  read0 =<< listTail n symbolTable
+symbolRef symbolTable n = read0 =<< listTail n symbolTable
 
 -- listTail :: MonadIO m => Int -> Rib -> m Rib -- Debug
 listTail = \case 0 -> pure; n -> read1 >=> listTail (n-1)
@@ -136,65 +115,54 @@ listTail = \case 0 -> pure; n -> read1 >=> listTail (n-1)
 -- decodeInstructions :: Rib -> String -> SIO Rib -- Debug
 decodeInstructions symbolTable instrStr = do
   let
-      -- go :: String -> SIO Rib -- Debug
-      go [] = pop
-      go (x:rest) = do
-        -- First code tells us the operand
-        let c = ord x - 35
-            code = if c < 0 then 57 else c
-            (n, op, d) = go2 code 0
-        if c > 90
-        then do
-          tos <- pop
-          stack <- getStack
-          read0 stack >>=
-            mkInstr (op - 1) tos >>=
-              write0 stack
-          go rest
-        else do
-          op <- if op == 0
-                  then push (RibInt 0) >> pure (op + 1)
-                  else pure op
+    -- go :: String -> SIO Rib -- Debug
+    go [] = pop
+    go (x:rest) = do
+      -- First code tells us the operand
+      let c = ord x-35
+          code = if c<0 then 57 else c
+          (n,op,d) = go2 code 0
+      if c>90
+      then do
+        tos <- pop
+        stack <- getStack
+        read0 stack >>= mkInstr (op - 1) tos >>= write0 stack
+        go rest
+      else do
+        op <- if op==0
+        then push (RibInt 0) >> pure (op+1)
+        else pure op
 
-          (rest', n) <- if n == d
-                          then do
-                          -- get_int(0)
-                          -- let (rest', i) = readInt rest 0
-                          -- pure (rest', RibInt i)
-                          pure (RibInt <$> readInt rest 0)
-                        else if n >= d
-                        then do
-                          -- symbol_ref(get_int(n - d - 1))
-                          let (rest', i) = readInt rest (n - d - 1)
-                          (rest',) <$> symbolRef symbolTable i
-                        else if op < 3
-                          -- symbol_ref(n)
-                        then (rest,) <$> symbolRef symbolTable n
-                        else pure (rest, RibInt n)
-          n <- if 4 < op
-            then do
-              tos <- pop
-              b <- mkInstr n (RibInt 0) tos
-              mkInstr b (RibInt 0) (RibInt 1)
-            else pure n
+        (rest', n) <- if n==d
+                        then
+                        -- get_int(0)
+                        -- let (rest', i) = readInt rest 0
+                        -- pure (rest', RibInt i)
+                        pure (RibInt <$> readInt rest 0)
+                      else if n>=d
+                      then do
+                        -- symbol_ref(get_int(n - d - 1))
+                        let (rest', i) = readInt rest (n-d-1)
+                        (rest',) <$> symbolRef symbolTable i
+                      else if op<3
+                        -- symbol_ref(n)
+                      then (rest,) <$> symbolRef symbolTable n
+                      else pure (rest, RibInt n)
+        n <- if 4 < op
+          then do
+            b <- pop >>= mkInstr n (RibInt 0)
+            mkInstr b (RibInt 0) (RibInt 1)
+          else pure n
 
-          stack <- getStack
-          case stack of
-            RibInt i -> read0 n >>= read2 -- End: pc = n[0][2]
-            RibRef r -> do
-              read0 stack >>=
-                mkInstr (min 4 op - 1) n >>=
-                  write0 stack
-              -- RibObj v1 _ _ <- readRef r
-              -- readRef v1 >>=
-              --   mkInstr (min 4 op - 1) n >>=
-              --     writeRef v1
-              go rest'
+        stack <- getStack
+        case stack of
+          RibInt i -> read0 n >>= read2 -- End: pc = n[0][2]
+          RibRef r -> read0 stack >>= mkInstr (min 4 op-1) n >>= write0 stack >> go rest'
 
-      -- Finds the op code from the encoded instruction
-      go2 n op =
-        let d = [20,30,0,10,11,4] !! op
-        in if 2+d < n then go2 (n-(d+3)) (op+1) else (n, op, d)
+    -- Finds the op code from the encoded instruction
+    go2 n op =
+      let d = [20,30,0,10,11,4]!!op
+      in if 2+d<n then go2 (n-(d+3)) (op+1) else (n,op,d)
 
   go instrStr
 
@@ -206,54 +174,54 @@ setGlobal symbolTable gloName val = do
   -- Give name to global variable.
   -- Equivalent to symtbl[0][1]=val
   -- Note: This is not in the python implementation
-  write1 symbolTableFst =<< toRibString gloName
+  -- write1 symbolTableFst =<< toRibString gloName -- Debug
   -- symtbl=symtbl[1]
   read1 symbolTable
 
 -- eval :: Rib -> SIO () -- Debug
 eval pc = do
   o <- read1 pc
-  i <- read0 pc
-  case i of
+  read0 pc >>= \case
     -- jump/call
     RibInt 0 -> do
       -- traceShowM "jump/call"
       o <- getOpnd o >>= read0
       c <- read0 o
-      case c of -- if is_rib(c)
+      case c of
         RibRef r -> do
-          c2 <- cons (RibInt 0) o -- c2=[0,o,0]
-          RibInt arity <- read0 c -- nargs=c[0]
+          c2 <- cons (RibInt 0) o
+          RibInt arity <- read0 c
           s2 <- foldrM (\_ args -> pop >>= flip cons args) c2 [1..arity] -- while nargs:s2=[pop(),s2,0];nargs-=1
-          read2 pc >>= \case -- if is_rib(pc[2])
-            o@RibRef {} -> do -- call
+          read2 pc >>= \case
+            -- call
+            o@RibRef {} -> do
               stack <- getStack
-              write0 c2 stack -- c2[0]=stack
-              write2 c2 o     -- c2[2]=pc[2]
-            RibInt n -> do -- jump
-              k <- getCont          -- k=get_cont()
-              write0 c2 =<< read0 k -- c2[0]=k[0]
-              write2 c2 =<< read2 k -- c2[2]=k[2]
-
-          setStack s2 -- stack=s2
-          read2 c >>= eval -- pc=c[2] & loop
+              write0 c2 stack
+              write2 c2 o
+            -- jump
+            RibInt n -> do
+              k <- getCont
+              write0 c2 =<< read0 k
+              write2 c2 =<< read2 k
+          setStack s2
+          read2 c >>= eval
 
         RibInt n -> do
-          primitives !! n -- primitives[c]()
-          read2 pc >>= \case -- is_rib(pc[2]):
-            RibRef _ -> read2 pc >>= eval -- call. c=pc; pc=c[2]
-            RibInt j -> do -- jump
-              k <- getCont -- c=get_cont()
+          primitives !! n
+          read2 pc >>= \case
+            -- call
+            RibRef _ -> read2 pc >>= eval
+            -- jump
+            RibInt j -> do
+              k <- getCont
               stack <- getStack
-              read0 k >>= write1 stack -- stack[1]=c[0]
+              read0 k >>= write1 stack
               read2 k >>= eval
 
     -- set
     RibInt 1 -> do
       -- traceShowM "set"
-      x <- pop
-      opnd <- getOpnd o
-      write0 opnd x
+      join (write0 <$> getOpnd o <*> pop)
       read2 pc >>= eval
 
     -- get
@@ -263,22 +231,19 @@ eval pc = do
       read2 pc >>= eval
 
     -- push
-    RibInt 3 -> do
+    RibInt 3 ->
       -- traceShowM "push"
-      push o
-      read2 pc >>= eval
+      push o >> read2 pc >>= eval
 
     -- if
     RibInt 4 -> do
       -- traceShowM "if"
-      tos <- pop
       -- IORef Eq's instance is pointer equality.
-      if tos == ribFalse
-        then read2 pc >>= eval
-        else read1 pc >>= eval
+      tos <- pop
+      (if tos == ribFalse then read2 else read1) pc >>= eval
 
     -- halt
-    _ -> do
+    _ ->
       -- traceShowM "HALT!"
       pure ()
 
@@ -293,7 +258,7 @@ getCont = do
   getStack >>= go
   where
     go = \case
-      RibInt _ -> error "getCont: Stack is not a Rib."
+      -- RibInt _ -> error "getCont: Stack is not a Rib." -- Debug
       r ->
         read2 r >>= \case
           RibInt _ -> read1 r >>= go
