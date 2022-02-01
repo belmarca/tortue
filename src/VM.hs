@@ -3,12 +3,9 @@
 module VM where
 
 import Control.Monad
-<<<<<<< HEAD
 import Control.Exception
 import System.IO.Error
-=======
 import Control.Monad.IO.Class
->>>>>>> e109d565fe70ed44324694f1ad3e8691411cf861
 import Data.Char ( ord, chr )
 import Data.Foldable ( foldrM )
 import Data.IORef ( IORef )
