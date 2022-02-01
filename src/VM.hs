@@ -29,9 +29,10 @@ inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that pr
 -- The codes encode the number in base-46, and are interpreted modulo 46.
 -- readInt :: String -> Int -> (String, Int) -- Debug
 readInt [] n = ([], n)
-readInt (x:xs) n =
-  let v = ord x - 35; c = if v < 0 then 57 else v; n' = n * 46
-  in if c < 46 then (xs, n' + v) else readInt xs (n' + v - 46)
+readInt (x:xs) n = let c=code x; n' = n * 46 in if c<46 then (xs,n'+c) else readInt xs (n'+c-46)
+
+-- code :: Char -> Int -- Debug
+code x = let v=ord x-35 in if v<0 then 57 else v
 
 -- VM environment
 
@@ -41,8 +42,7 @@ type Prim = SIO ()
 push v = getStack >>= cons v >>= setStack
 
 -- pop :: SIO Rib -- Debug
-pop = getStack >>= \case
-  RibRef r -> readRef r >>= \(RibObj top rest _) -> setStack rest >> pure top
+pop = getStack >>= \case RibRef r -> readRef r >>= \(RibObj top rest _) -> setStack rest >> pure top
   -- RibInt _ -> error "Empty stack" -- Debug
 
 -- Primitives
@@ -87,10 +87,15 @@ primitives =
   , liftIO safeGetChar >>= push . RibInt                                              -- getChar
   , prim1 (\r@(RibInt v) -> liftIO (putChar (chr v)) >> pure r)                       -- putChar
   ]
-  where
-    writePrim f r v = f r v >> pure v
-    onInt f (RibInt a) (RibInt b) = pure $ RibInt (f a b)
-    toBool b = pure $ if b then ribTrue else ribFalse
+
+-- writePrim :: Monad m => (t -> b -> m a) -> t -> b -> m b -- Debug
+writePrim f r v = f r v >> pure v
+
+-- onInt :: Applicative f => (Int -> Int -> Int) -> Rib -> Rib -> f Rib -- Debug
+onInt f (RibInt a) (RibInt b) = pure $ RibInt (f a b)
+
+-- toBool :: Applicative f => Bool -> f Rib -- Debug
+toBool b = pure $ if b then ribTrue else ribFalse
 
 -- Initializing symbol table
 
@@ -113,70 +118,37 @@ symbolRef symbolTable n = read0 =<< listTail n symbolTable
 listTail = \case 0 -> pure; n -> read1 >=> listTail (n-1)
 
 -- decodeInstructions :: Rib -> String -> SIO Rib -- Debug
-decodeInstructions symbolTable instrStr = do
-  let
-    -- go :: String -> SIO Rib -- Debug
-    go [] = pop
-    go (x:rest) = do
-      -- First code tells us the operand
-      let c = ord x-35
-          code = if c<0 then 57 else c
-          (n,op,d) = go2 code 0
-      if c>90
-      then do
-        tos <- pop
-        stack <- getStack
-        read0 stack >>= mkInstr (op - 1) tos >>= write0 stack
-        go rest
-      else do
-        op <- if op==0
-        then push (RibInt 0) >> pure (op+1)
-        else pure op
+decodeInstructions symbolTable [] = pop
+decodeInstructions symbolTable (x:rest) = do
+  -- First code tells us the operand
+  let c=code x; (n,op,d) = findOp c 0
+  if c>90
+  then do
+    tos <- pop
+    stack <- getStack
+    read0 stack >>= mkInstr (op-1) tos >>= write0 stack
+    decodeInstructions symbolTable rest
+  else do
+    op <- if op==0 then push (RibInt 0) >> pure (op+1) else pure op
+    (rest', n) <- if n==d then pure (RibInt <$> readInt rest 0) -- get_int(0)
+    else if n>=d then let (rest', i) = readInt rest (n-d-1) in (rest',) <$> symbolRef symbolTable i -- symbol_ref(get_int(n - d - 1))
+    else if op<3 then (rest,) <$> symbolRef symbolTable n -- symbol_ref(n)
+    else pure (rest, RibInt n)
+    n <- if 4<op then do
+      b <- pop >>= mkInstr n (RibInt 0)
+      mkInstr b (RibInt 0) (RibInt 1)
+    else pure n
 
-        (rest', n) <- if n==d
-                        then
-                        -- get_int(0)
-                        -- let (rest', i) = readInt rest 0
-                        -- pure (rest', RibInt i)
-                        pure (RibInt <$> readInt rest 0)
-                      else if n>=d
-                      then do
-                        -- symbol_ref(get_int(n - d - 1))
-                        let (rest', i) = readInt rest (n-d-1)
-                        (rest',) <$> symbolRef symbolTable i
-                      else if op<3
-                        -- symbol_ref(n)
-                      then (rest,) <$> symbolRef symbolTable n
-                      else pure (rest, RibInt n)
-        n <- if 4 < op
-          then do
-            b <- pop >>= mkInstr n (RibInt 0)
-            mkInstr b (RibInt 0) (RibInt 1)
-          else pure n
+    stack <- getStack
+    case stack of
+      RibInt i -> read0 n >>= read2 -- End: pc = n[0][2]
+      RibRef r -> read0 stack >>= mkInstr (min 4 op-1) n >>= write0 stack >> decodeInstructions symbolTable rest'
 
-        stack <- getStack
-        case stack of
-          RibInt i -> read0 n >>= read2 -- End: pc = n[0][2]
-          RibRef r -> read0 stack >>= mkInstr (min 4 op-1) n >>= write0 stack >> go rest'
-
-    -- Finds the op code from the encoded instruction
-    go2 n op =
-      let d = [20,30,0,10,11,4]!!op
-      in if 2+d<n then go2 (n-(d+3)) (op+1) else (n,op,d)
-
-  go instrStr
+-- Finds the op code from the encoded instruction
+findOp n op = let d = [20,30,0,10,11,4]!!op in if 2+d<n then findOp (n-(d+3)) (op+1) else (n,op,d)
 
 -- setGlobal :: Rib -> String -> Rib -> SIO Rib -- Debug
-setGlobal symbolTable gloName val = do
-  -- symtbl[0][0]=val
-  symbolTableFst <- read0 symbolTable
-  write0 symbolTableFst val
-  -- Give name to global variable.
-  -- Equivalent to symtbl[0][1]=val
-  -- Note: This is not in the python implementation
-  -- write1 symbolTableFst =<< toRibString gloName -- Debug
-  -- symtbl=symtbl[1]
-  read1 symbolTable
+setGlobal symbolTable gloName val = read0 symbolTable >>= flip write0 val >> read1 symbolTable
 
 -- eval :: Rib -> SIO () -- Debug
 eval pc = do
@@ -212,7 +184,7 @@ eval pc = do
             -- call
             RibRef _ -> read2 pc >>= eval
             -- jump
-            RibInt j -> do
+            RibInt _ -> do
               k <- getCont
               stack <- getStack
               read0 k >>= write1 stack
@@ -231,9 +203,9 @@ eval pc = do
       read2 pc >>= eval
 
     -- push
-    RibInt 3 ->
+    RibInt 3 -> push o >> read2 pc >>= eval
       -- traceShowM "push"
-      push o >> read2 pc >>= eval
+
 
     -- if
     RibInt 4 -> do
@@ -243,9 +215,8 @@ eval pc = do
       (if tos == ribFalse then read2 else read1) pc >>= eval
 
     -- halt
-    _ ->
-      -- traceShowM "HALT!"
-      pure ()
+    _ -> pure ()
+      -- traceShowM "halt"
 
 -- getOpnd :: Rib -> SIO Rib -- Debug
 getOpnd (RibInt n) = getStack >>= listTail n
@@ -254,15 +225,14 @@ getOpnd o = pure o
 -- Look at stack until it finds the continuation rib. The continuation rib is
 -- the first rib of the stack that doesn't have an Int as its tag.
 -- getCont :: SIO Rib -- Debug
-getCont = do
-  getStack >>= go
+getCont = getStack >>= go
   where
-    go = \case
-      -- RibInt _ -> error "getCont: Stack is not a Rib." -- Debug
-      r ->
-        read2 r >>= \case
-          RibInt _ -> read1 r >>= go
-          _ -> pure r
+  go = \case
+    -- RibInt _ -> error "getCont: Stack is not a Rib." -- Debug
+    r ->
+      read2 r >>= \case
+        RibInt _ -> read1 r >>= go
+        _ -> pure r
 
 -- createState :: IO (State, Rib) -- Debug
 createState = do
