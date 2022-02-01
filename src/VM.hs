@@ -3,12 +3,11 @@
 module VM where
 
 import Control.Monad
-import Control.Exception
-import System.IO.Error
 import Control.Monad.IO.Class
 import Data.Char ( ord, chr )
 import Data.Foldable ( foldrM )
 import Data.IORef ( IORef )
+import GHC.IO (catchAny)
 
 import Utils
 import Rib
@@ -66,58 +65,49 @@ pop = do
 -- Primitives
 
 prim1 :: (Rib -> ReaderIO State Rib) -> Prim
-prim1 f = do
-  v1 <- pop
-  f v1 >>= push
+prim1 f = pop >>= f >>= push
 
 prim2 :: (Rib -> Rib -> ReaderIO State Rib) -> Prim
-prim2 f = do
-  v2 <- pop
-  v1 <- pop
-  f v1 v2 >>= push
+prim2 f = flip (,) <$> pop <*> pop >>= uncurry f >>= push
 
-prim3 :: (Rib -> Rib -> Rib -> ReaderIO State Rib) -> Prim
-prim3 f = do
-  v3 <- pop
-  v2 <- pop
-  v1 <- pop
-  f v1 v2 v3 >>= push
+prim3 :: ((Rib,Rib,Rib) -> ReaderIO State Rib) -> Prim
+prim3 f = (,,) <$> pop <*> pop <*> pop >>= f >>= push
+
+safeGetChar :: IO Int
+safeGetChar = fmap ord getChar `catchAny` const (return (-1))
+
+close :: ReaderIO State ()
+close = do
+  v1 <- pop >>= read0
+  get >>= mkProc v1 . stackRef >>= push
 
 primitives :: [Prim]
-primitives = zipWith decorator [0..]
-  [ prim3 (\a b c -> toRib $ RibObj a b c)                                            -- rib object constructor
+primitives =
+  [ prim3 (\(c,b,a) -> toRib $ RibObj a b c)                                          -- rib object constructor
   , prim1 pure                                                                        -- id
   , void pop                                                                          -- take 2 TOS, keep first
   , prim2 (const pure)                                                                -- take 2 TOS, keep second
-  , do
-      v1 <- pop >>= read0
-      stack <- stackRef <$> get
-      mkProc v1 stack >>= push                                                     -- close
+  , close                                                                             -- close
   , prim1 (pure . (\case RibInt _ -> ribFalse; _ -> ribTrue))                         -- rib?
   , prim1 read0                                                                       -- field0 -- 6
   , prim1 read1                                                                       -- field1 -- 7
   , prim1 read2                                                                       -- field2 -- 8
-  , prim2 (\r v -> write0 r v >> pure v)                                              -- field0-set! -- 9
-  , prim2 (\r v -> write1 r v >> pure v)                                              -- field1-set! -- 10
-  , prim2 (\r v -> write2 r v >> pure v)                                              -- field2-set! -- 11
-  , prim2 $ \r1 r2 -> pure $ toBool (r1 == r2)                                        -- eqv?
-  , prim2 $ \(RibInt r1) (RibInt r2) -> pure $ toBool (r1 < r2)                       -- <
-  , prim2 $ \(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 + r2)                       -- add
-  , prim2 $ \(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 - r2)                       -- sub
-  , prim2 $ \(RibInt r1) (RibInt r2) -> pure $ RibInt (r1 * r2)                       -- mult
-  , prim2 $ \(RibInt r1) (RibInt r2) -> pure $ RibInt (div r1 r2)                     -- quotient
-  , liftIO getChar' >>= push . RibInt                                            -- getChar
+  , prim2 $ writePrim write0                                                          -- field0-set! -- 9
+  , prim2 $ writePrim write1                                                          -- field1-set! -- 10
+  , prim2 $ writePrim write2                                                          -- field2-set! -- 11
+  , prim2 $ \r1 r2 -> toBool (r1 == r2)                                               -- eqv?
+  , prim2 $ \(RibInt r1) (RibInt r2) -> toBool (r1 < r2)                              -- <
+  , prim2 $ onInt (+)                                                                 -- add
+  , prim2 $ onInt (-)                                                                 -- sub
+  , prim2 $ onInt (*)                                                                 -- mult
+  , prim2 $ onInt div                                                                 -- quotient
+  , liftIO safeGetChar >>= push . RibInt                                              -- getChar
   , prim1 (\r@(RibInt v) -> liftIO (putChar (chr v)) >> pure r)                       -- putChar
-  -- , prim1 (\c -> push c >> pure c)  -- Duplicate top element. Not a regular RVM primitive, but useful in Repl.hs
   ]
   where
-    toBool b = if b then ribTrue else ribFalse
-
-    -- TODO: Minimize me
-    decorator :: Int -> Prim -> Prim
-    decorator primId prim = do
-      -- traceShowM $ "Calling primitive " <> show primId
-      prim
+    writePrim f r v = f r v >> pure v
+    onInt f (RibInt a) (RibInt b) = pure $ RibInt (f a b)
+    toBool b = pure $ if b then ribTrue else ribFalse
 
 -- Initializing symbol table
 
@@ -339,8 +329,3 @@ createState = do
     st <- get
     set st {stackRef=halt2}
     pure instr
-
-getChar' :: IO Int
-getChar' = (ord <$> getChar) `catch` eofHandler
-  where
-    eofHandler e = if isEOFError e then return (-1) else return (-2)
