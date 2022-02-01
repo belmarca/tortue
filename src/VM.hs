@@ -1,12 +1,11 @@
-{-# LANGUAGE LambdaCase, TupleSections, FlexibleInstances, RankNTypes #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# LANGUAGE LambdaCase, TupleSections #-}
 module VM where
 
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Char ( ord, chr )
-import Data.Foldable ( foldrM )
-import Data.IORef ( IORef )
+import Data.Char
+import Data.Foldable
+import Data.IORef
 import GHC.IO (catchAny)
 
 import Utils

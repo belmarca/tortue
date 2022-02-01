@@ -1,6 +1,5 @@
 module Env where
 
-import Prelude
 import Rib
 import Utils
 

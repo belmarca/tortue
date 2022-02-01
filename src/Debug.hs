@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, OverloadedStrings, ScopedTypeVariables, TupleSections #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings, TupleSections #-}
 module Debug where
 
 import Control.Monad.IO.Class

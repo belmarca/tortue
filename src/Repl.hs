@@ -1,9 +1,8 @@
-{-# LANGUAGE LambdaCase #-}
 module Repl where
 
 import Prelude hiding (drop)
 
-import Control.Exception ( bracket )
+import Control.Exception (bracket)
 import Control.Monad (forM, forM_, replicateM, replicateM_, void)
 import Data.Char (chr)
 

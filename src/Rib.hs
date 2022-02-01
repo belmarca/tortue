@@ -2,12 +2,11 @@
 module Rib where
 
 import Control.Monad.IO.Class
-import Data.Char ( ord )
-import Data.Foldable ( foldrM )
-import Data.IORef ( IORef )
-import GHC.IO ( unsafePerformIO )
-
-import Utils ( writeRef, readRef, newRef )
+import Data.Char
+import Data.Foldable
+import Data.IORef
+import GHC.IO (unsafePerformIO)
+import Utils
 
 -- Rib Objects
 

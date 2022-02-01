@@ -12,10 +12,8 @@ bundle:
 	mkdir -p dist
 	cp rvm.hs.in $(out)
 
-	# Copy module languages
-	grep "LANGUAGE" $(utils) >> $(out) || true
-	grep "LANGUAGE" $(rib) >> $(out) || true
-	grep "LANGUAGE" $(vm) >> $(out) || true
+	# Add Haskell extensions
+	echo "{-# LANGUAGE LambdaCase, TupleSections #-}" >> $(out)
 
 	echo "\nmodule Main where" >> $(out)
 

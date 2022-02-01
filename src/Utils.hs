@@ -1,10 +1,9 @@
-{-# LANGUAGE TupleSections, FlexibleInstances #-}
+{-# LANGUAGE TupleSections #-}
 
 module Utils where
 
 import Control.Monad.IO.Class
-
-import Data.IORef ( IORef, newIORef, readIORef, writeIORef )
+import Data.IORef
 
 -- StateIO permet de modéliser le passage de paramètre constant, similaire au
 -- dependency injection.
