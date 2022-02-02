@@ -11,7 +11,6 @@ import Rib
 import Utils
 import VM
 
-
 main :: IO ()
 main = do
   symTblHello <- makeSymTable helloWorldStr

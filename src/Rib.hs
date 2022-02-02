@@ -12,11 +12,7 @@ import Utils
 
 data Rib = RibInt {-# UNPACK #-} !Int | RibRef {-# UNPACK #-} !(IORef RibObj) deriving (Eq)
 
-data RibObj = RibObj
-  { field0 :: !Rib
-  , field1 :: !Rib
-  , field2 :: !Rib
-  } deriving (Eq)
+data RibObj = RibObj { field0 :: !Rib, field1 :: !Rib, field2 :: !Rib} deriving (Eq)
 
 -- Typeclass permettant l'utilisation de mkObj sans avoir à toujours créer des
 -- IORef manuellement.

@@ -20,8 +20,7 @@ set s = StateIO (\_ -> pure (s, ()))
 -- Functor est la généralisation de la fonction map sur les listes.
 -- Un foncteur f "contenant" des valeurs de type `a` permet de mapper chacun de
 -- ces `a` pour obtenir une valeur de type b correspondante.
-instance Functor (StateIO r) where
-  fmap f (StateIO r) = StateIO $ fmap (fmap f) . r
+instance Functor (StateIO r) where fmap f (StateIO r) = StateIO $ fmap (fmap f) . r
 
 -- Applicative permet le séquencement d'opération sans branchement.
 instance Applicative (StateIO r) where
@@ -31,9 +30,7 @@ instance Applicative (StateIO r) where
     fmap f' <$> a s'
 
 -- Applicative permet le séquencement d'opération avec branchement.
-instance Monad (StateIO r) where
-  (StateIO f) >>= cont = StateIO $ \s -> do
-    f s >>= \(s', a) -> runReaderIO (cont a) s'
+instance Monad (StateIO r) where (StateIO f) >>= cont = StateIO $ \s -> f s >>= \(s', a) -> runReaderIO (cont a) s'
 
 -- Action permettant l'échec d'une action.
 -- On s'en sert ici quand on laisse un pattern match vide.

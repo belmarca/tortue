@@ -129,7 +129,6 @@ decodeInstructions symbolTable (x:rest) = do
       b <- pop >>= mkInstr n (RibInt 0)
       mkInstr b (RibInt 0) (RibInt 1)
     else pure n
-
     stack <- getStack
     case stack of
       RibInt i -> read0 n >>= read2 -- End: pc = n[0][2]
@@ -197,7 +196,6 @@ eval pc = do
     RibInt 3 -> push o >> read2 pc >>= eval
       -- traceShowM "push"
 
-
     -- if
     RibInt 4 -> do
       -- traceShowM "if"
@@ -227,8 +225,7 @@ getCont = getStack >>= go
 
 -- createState :: String -> IO (State, Rib) -- Debug
 createState programStr = do
-  let (start, end) = span (/= ';') programStr
-      ((symbolTableStr, emptySymbolsCount), instructionsStr) = (readInt start 0, drop 1 end)
+  let (start, end) = span (/= ';') programStr; ((symbolTableStr, emptySymbolsCount), instructionsStr) = (readInt start 0, drop 1 end)
   -- Creating a partial state to decode the instructions.
   -- We just need a stack and the symbol table.
   -- The global object references will be patched later.
