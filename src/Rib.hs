@@ -56,11 +56,11 @@ write1 r v = writeN (\obj -> obj {field1 = v}) r
 write2 r v = writeN (\obj -> obj {field2 = v}) r
 
 -- cons, mkProc, mkSymb, mkStr, mkVect :: (ToRib a, ToRib b, MonadIO m) => a -> b -> m Rib -- Debug
-cons = mkObj (0 :: Int)
-mkProc = mkObj (1 :: Int)
-mkSymb = mkObj (2 :: Int)
-mkStr  = mkObj (3 :: Int)
-mkVect = mkObj (4 :: Int)
+cons = mkObj (RibInt 0)
+mkProc = mkObj (RibInt 1)
+mkSymb = mkObj (RibInt 2)
+mkStr  = mkObj (RibInt 3)
+mkVect = mkObj (RibInt 4)
 
 -- mkSVal :: MonadIO m => m Rib -- Debug
 mkSVal = mkObj (RibInt 5) (RibInt 0) (RibInt 0) -- Don't care about zeroes
