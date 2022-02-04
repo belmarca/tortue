@@ -137,8 +137,8 @@ decodeInstructions symbolTable (x:rest) = do
 -- Finds the op code from the encoded instruction
 findOp n op = let d = [20,30,0,10,11,4]!!op in if 2+d<n then findOp (n-(d+3)) (op+1) else (n,op,d)
 
--- setGlobal :: Rib -> String -> Rib -> SIO Rib -- Debug
-setGlobal symbolTable gloName val = read0 symbolTable >>= flip write0 val >> read1 symbolTable
+-- setGlobal :: MonadIO m => Rib -> Rib -> m Rib -- Debug
+setGlobal symbolTable val = read0 symbolTable >>= flip write0 val >> read1 symbolTable
 
 -- eval :: Rib -> SIO () -- Debug
 eval pc = do
@@ -237,10 +237,10 @@ createState programStr = do
     instr <- decodeInstructions symbolTable instructionsStr
 
     -- Set globals
-    symbolTable' <- setGlobal symbolTable "symbtl" =<< mkProc (RibInt 0) symbolTable -- primitive 0
-    symbolTable'' <- setGlobal symbolTable' "false" ribFalse
-    symbolTable''' <- setGlobal symbolTable'' "true" ribTrue
-    setGlobal symbolTable''' "nil" ribNil
+    symbolTable' <- setGlobal symbolTable =<< mkProc (RibInt 0) symbolTable -- primitive 0
+    symbolTable'' <- setGlobal symbolTable' ribFalse
+    symbolTable''' <- setGlobal symbolTable'' ribTrue
+    setGlobal symbolTable''' ribNil
 
     -- Replace stack with [0,0,[5,0,0]]:
     -- primordial continuation which executes halt instruction.
