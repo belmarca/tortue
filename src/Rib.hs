@@ -29,7 +29,7 @@ instance ToRib RibObj where toRib = fmap RibRef . newRef
 instance ToRib Int where toRib = toRib . RibInt
 
 -- On convertit le char en RibInt et on crée une référence
-instance ToRib Char where toRib = toRib . RibInt . ord
+-- instance ToRib Char where toRib = toRib . RibInt . ord
 
 -- mkObj :: (ToRib a, ToRib b, ToRib c, MonadIO m) => a -> b -> c -> m Rib -- Debug
 mkObj tag r1 r2 = toRib =<< RibObj <$> toRib r1 <*> toRib r2 <*> toRib tag
@@ -81,7 +81,7 @@ ribNil = unsafePerformIO (toRib =<< mkSVal)
 toRibList = foldrM cons ribNil
 
 -- toRibString :: MonadIO m => String -> m Rib -- Debug
-toRibString chars = toRibList chars >>= flip mkStr (length chars)
+toRibString chars = toRibList (ord <$> chars) >>= flip mkStr (length chars)
 
 -- toRibSymbol :: MonadIO m => String -> m Rib -- Debug
 toRibSymbol = (=<<) (mkSymb (RibInt 0)) . toRibString

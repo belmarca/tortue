@@ -4,7 +4,7 @@ import Prelude hiding (drop)
 
 import Control.Exception (bracket)
 import Control.Monad (forM, forM_, replicateM, replicateM_, void)
-import Data.Char (chr)
+import Data.Char (chr, ord)
 
 import Debug
 import Env
@@ -41,7 +41,7 @@ callPrim primCode =
 progTrace :: String -> SIO ()
 progTrace msg = do
   -- On pousse le message en ordre inverse
-  forM_ (reverse msg) push
+  forM_ (reverse msg) (push . ord)
   -- On appelle put char et on enlève le charactère du stack
   replicateM_ (length msg) (callPrim 18 >> drop)
 
