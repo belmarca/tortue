@@ -48,7 +48,7 @@ prim2 f = flip (,) <$> pop <*> pop >>= uncurry f >>= push
 prim3 f = (,,) <$> pop <*> pop <*> pop >>= f >>= push
 
 -- safeGetChar :: IO Int -- Debug
-safeGetChar = fmap ord getChar `catchAny` const (return (-1))
+safeGetChar = fmap ord getChar `catchAny` const (pure (-1))
 
 -- close :: Prim -- Debug
 close = do
