@@ -9,7 +9,7 @@ import Utils
 
 -- Rib Objects
 
-data Rib = RibInt {-# UNPACK #-} !Int | RibRef {-# UNPACK #-} !(IORef RibObj) deriving (Eq)
+data Rib = RibInt !Int | RibRef !(IORef RibObj) deriving (Eq)
 
 data RibObj = RibObj { field0 :: !Rib, field1 :: !Rib, field2 :: !Rib} deriving (Eq)
 
