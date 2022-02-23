@@ -35,7 +35,7 @@ library
       Paths_tortue
   hs-source-dirs:
       src
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -O2
   build-depends:
       aeson
     , aeson-pretty
@@ -53,7 +53,7 @@ executable tortue-exe
       Paths_tortue
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2 -threaded -rtsopts -with-rtsopts=-N -O2 -optl-s -dynamic
+  ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N1 -O2 -optl-s -dynamic
   build-depends:
       aeson
     , aeson-pretty
@@ -73,7 +73,7 @@ test-suite tortue-test
       Paths_tortue
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
     , aeson-pretty
@@ -93,7 +93,7 @@ benchmark tortue-bench
       Paths_tortue
   hs-source-dirs:
       bench
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2 -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N1 -O2
   build-depends:
       aeson
     , aeson-pretty
