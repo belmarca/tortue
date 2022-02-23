@@ -91,8 +91,7 @@ toBool b = pure $ if b then ribTrue else ribFalse
 
 -- Définition alternative de initialSymbolTable plus idiomatique.
 -- initialSymbolTable :: String -> Int -> IO Rib -- Debug
-initialSymbolTable symTblStr emptySymCount =
-  toRibList . reverse =<< mapM toRibSymbol (replicate emptySymCount "" <> splitOnCommas symTblStr)
+initialSymbolTable symTblStr emptySymCount = toRibList . reverse =<< mapM toRibSymbol (replicate emptySymCount "" <> splitOnCommas symTblStr)
 
 -- splitOnCommas :: String -> [String] -- Debug
 splitOnCommas xs = case span (/= ',') xs of
@@ -168,7 +167,7 @@ eval pc = do
           read2 c >>= eval
 
         RibInt n -> do
-          primitives !! n
+          primitives!!n
           read2 pc >>= \case
             -- call
             RibRef _ -> read2 pc >>= eval
@@ -200,7 +199,7 @@ eval pc = do
       -- traceShowM "if"
       -- IORef Eq's instance is pointer equality.
       tos <- pop
-      (if tos == ribFalse then read2 else read1) pc >>= eval
+      (if tos==ribFalse then read2 else read1) pc >>= eval
 
     -- halt
     _ -> pure ()

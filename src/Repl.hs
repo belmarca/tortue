@@ -156,7 +156,7 @@ askChars = do
       callPrim 17         -- getChar [char, acc]
       RibInt code <- pop  -- [acc]
       let c = chr code
-      if c == '\n'
+      if c=='\n'
         then pure ()      -- [acc]
         else do
           push (RibInt 0) -- [0, acc]
