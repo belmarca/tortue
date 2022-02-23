@@ -18,11 +18,7 @@ bundle:
 	echo "\nmodule Main where" >> $(out)
 
 	# Copy module imports
-	grep "import " $(env) >> $(out) || true
-	grep "import " $(rib) >> $(out) || true
-	grep "import " $(utils) >> $(out) || true
-	grep "import " $(vm) >> $(out) || true
-	grep "import " $(main) >> $(out) || true
+	cat $(env) $(rib) $(utils) $(vm) $(main) | grep "import " | sort | uniq >> $(out) || true
 
 	# Copy module bodies
 	echo "\n\n-- Utils" >> $(out)
