@@ -7,7 +7,7 @@ import Data.Char ( chr, ord )
 import Data.Text ( Text, pack )
 import Data.IORef ( IORef )
 import Data.Scientific ( floatingOrInteger )
-import GHC.IO ( unsafePerformIO )
+import GHC.IO hiding (liftIO)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BS
@@ -20,16 +20,16 @@ import Env
 
 -- Debugging functions
 
-printRib :: Rib -> SIO ()
+printRib :: Rib -> IO ()
 printRib r = liftIO . BS.putStrLn . Aeson.encodePretty =<< ribDataToJson r
 
-printInstrRib :: Rib -> SIO ()
+printInstrRib :: Rib -> IO ()
 printInstrRib r = liftIO . BS.putStrLn . Aeson.encodePretty =<< ribInstructionToJson r
 
-printFirstInstrRib :: Rib -> SIO ()
+printFirstInstrRib :: Rib -> IO ()
 printFirstInstrRib r = liftIO . BS.putStrLn . Aeson.encodePretty . head =<< ribInstructionToJson r
 
-printRibList :: Rib -> SIO ()
+printRibList :: Rib -> IO ()
 printRibList (RibRef r) = do
   RibObj car cdr _ <- readRef r
   liftIO . BS.putStrLn . Aeson.encodePretty =<< decodeList car cdr
@@ -50,7 +50,7 @@ ribToSexp rib = do (_,_,sexp) <- go 0 [] rib; pure sexp
     go :: MonadIO m => Int -> [(IORef RibObj, Int)] -> Rib -> m (Int, [(IORef RibObj, Int)], Sexp)
     go i cycles (RibInt n) = pure (i, cycles, SexpInt n)
     go i cycles (RibRef r) = do
-      RibObj r1 r2 r3 <- readRef r
+      RibObj r1 r2 r3 <- liftIO $ readRef r
       let initial_i = i
       (i, cycles, v1) <- recurse i cycles r1
       (i, cycles, v2) <- recurse i cycles r2
@@ -66,7 +66,7 @@ ribToSexp rib = do (_,_,sexp) <- go 0 [] rib; pure sexp
 
 -- Convert the data rib to JSON
 -- For decoding instructions, see ribInstructionToJson
-ribDataToJson :: Rib -> SIO Aeson.Value
+ribDataToJson :: Rib -> IO Aeson.Value
 ribDataToJson (RibInt n) = pure $ Aeson.Number (fromIntegral n)
 ribDataToJson o@(RibRef r) = do
   RibObj v1 v2 tag <- readRef r
@@ -99,7 +99,7 @@ ribDataToJson o@(RibRef r) = do
 
     -- Special value
     RibInt 5 -> do
-      st <- get
+      st <- getStack
       if ribFalse == o
         then pure $ Aeson.String "#(false)#"
       else if ribTrue == o
@@ -129,7 +129,7 @@ ribDataToJson o@(RibRef r) = do
     addField :: Aeson.Value -> Text -> Aeson.Value -> Aeson.Value
     addField (Aeson.Object obj) key val = Aeson.Object $ Map.insert key val obj
 
-ribInstructionToJson :: Rib -> SIO [Aeson.Value]
+ribInstructionToJson :: Rib -> IO [Aeson.Value]
 ribInstructionToJson (RibInt n) = pure [] -- pure [Aeson.Number (fromIntegral n)]
 ribInstructionToJson o@(RibRef r) = do
   RibObj tag v2 v3 <- readRef r
@@ -205,7 +205,7 @@ ribInstructionToJson o@(RibRef r) = do
       rest <- ribInstructionToJson v3
       pure $ instr : rest
 
-decodeList :: Rib -> Rib -> SIO [Aeson.Value]
+decodeList :: Rib -> Rib -> IO [Aeson.Value]
 decodeList car cdr = do
   carValue  <- ribDataToJson car
   cdrValues <- case cdr of
@@ -228,7 +228,7 @@ decodeList car cdr = do
                         _ -> error "Invalid Rib list. Tag can't be an object."
   pure $ carValue : cdrValues
 
-decodeVector :: Rib -> Rib -> SIO (Int, [Aeson.Value]) -- Length and elements
+decodeVector :: Rib -> Rib -> IO (Int, [Aeson.Value]) -- Length and elements
 decodeVector elements len = do
   -- Length est bien un entier?
   case len of
@@ -251,7 +251,7 @@ decodeVector elements len = do
 
     RibRef {} -> error "Vector length is not an int"
 
-decodeString :: Rib -> Rib -> SIO (Int, String)
+decodeString :: Rib -> Rib -> IO (Int, String)
 decodeString elems len = do
   (len, vals) <- decodeVector elems len
   let toChar = \case
@@ -263,7 +263,7 @@ decodeString elems len = do
   chars <- mapM toChar vals
   pure (len, chars)
 
-decodeProc :: Rib -> Rib -> SIO (Int, [Aeson.Value], [Aeson.Value])
+decodeProc :: Rib -> Rib -> IO (Int, [Aeson.Value], [Aeson.Value])
 decodeProc code env = do
   (arity, codeVals) <- case code of
     RibInt n -> pure (-1, [])
@@ -295,7 +295,7 @@ decodeProc code env = do
 
   pure (arity, codeVals, env)
 
-printState :: SIO ()
+printState :: IO ()
 printState = do
   liftIO $ putStrLn "Stack:"
   liftIO . print =<< ribToSexp =<< getStack

@@ -38,8 +38,8 @@ main = do
     ]
   where
     benchDecodeInstr str symTbl = do
-      let state = State (RibInt 0)
-      runReaderIO (decodeInstructions symTbl str) state
+      setStack (RibInt 0)
+      decodeInstructions symTbl str
 
 makeSymTable :: String -> IO Rib
 makeSymTable inputStr = initialSymbolTable symbolTableStr emptySymbolsCount
@@ -48,15 +48,15 @@ makeSymTable inputStr = initialSymbolTable symbolTableStr emptySymbolsCount
 
 makeInstructions :: Rib -> String -> IO Rib
 makeInstructions symTbl inputStr = do
-  let state = State (RibInt 0)
-  snd <$> runReaderIO (decodeInstructions symTbl instructionsStr) state
+  setStack (RibInt 0)
+  decodeInstructions symTbl instructionsStr
   where
     (symbolTableStr, emptySymbolsCount, instructionsStr) = splitBytecode inputStr
 
 runProgram :: String -> IO ()
 runProgram programStr = do
-  (state, instructions) <- createState programStr
-  void $ runReaderIO (eval instructions) state
+  instructions <- initialize programStr
+  eval instructions
 
 splitBytecode :: String -> (String, Int, String)
 splitBytecode inputStr =

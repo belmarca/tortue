@@ -11,7 +11,7 @@ inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that pr
 
 -- main :: IO () -- Debug
 -- main = do
---   (st, instructions) <- createState inputStr
+--   (st, instructions) <- initialize inputStr
 --   void $ runReaderIO (eval instructions) st
 
 -- Main that takes arguments.
@@ -21,5 +21,5 @@ main = do
   programStr <- case args of
     [file] -> readFile file
     _ -> pure inputStr
-  (st, instructions) <- createState programStr
-  void $ runReaderIO (eval instructions) st
+  instructions <- initialize programStr
+  eval instructions

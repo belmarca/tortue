@@ -1,12 +1,11 @@
-{-# LANGUAGE LambdaCase, TupleSections #-}
+{-# LANGUAGE LambdaCase #-}
 module VM where
 
 import Control.Monad
-import Control.Monad.IO.Class
 import Data.Char
 import Data.Foldable
 import Data.IORef
-import GHC.IO (catchAny)
+import GHC.IO
 
 import Utils
 import Rib
@@ -27,24 +26,24 @@ code x = let v=ord x-35 in if v<0 then 57 else v
 
 -- VM environment
 
-type Prim = SIO ()
+type Prim = IO ()
 
--- push :: ToRib a => a -> SIO () -- Debug
+-- push :: ToRib a => a -> IO () -- Debug
 push v = getStack >>= cons v >>= setStack
 
--- pop :: SIO Rib -- Debug
+-- pop :: IO Rib -- Debug
 pop = getStack >>= \case RibRef r -> readRef r >>= \(RibObj top rest _) -> setStack rest >> pure top
   -- RibInt _ -> error "Empty stack" -- Debug
 
 -- Primitives
 
--- prim1 :: (Rib -> SIO Rib) -> Prim -- Debug
+-- prim1 :: (Rib -> IO Rib) -> Prim -- Debug
 prim1 f = pop >>= f >>= push
 
--- prim2 :: (Rib -> Rib -> SIO Rib) -> Prim -- Debug
+-- prim2 :: (Rib -> Rib -> IO Rib) -> Prim -- Debug
 prim2 f = flip (,) <$> pop <*> pop >>= uncurry f >>= push
 
--- prim3 :: ((Rib,Rib,Rib) -> SIO Rib) -> Prim -- Debug
+-- prim3 :: ((Rib,Rib,Rib) -> IO Rib) -> Prim -- Debug
 prim3 f = (,,) <$> pop <*> pop <*> pop >>= f >>= push
 
 -- safeGetChar :: IO Int -- Debug
@@ -75,8 +74,8 @@ primitives =
   , prim2 $ onInt (-)                                                                 -- sub
   , prim2 $ onInt (*)                                                                 -- mult
   , prim2 $ onInt div                                                                 -- quotient
-  , liftIO safeGetChar >>= push . RibInt                                              -- getChar
-  , prim1 (\r@(RibInt v) -> liftIO (putChar (chr v)) >> pure r)                       -- putChar
+  , safeGetChar >>= push . RibInt                                              -- getChar
+  , prim1 (\r@(RibInt v) -> putChar (chr v) >> pure r)                       -- putChar
   ]
 
 -- writePrim :: Monad m => (t -> b -> m a) -> t -> b -> m b -- Debug
@@ -102,13 +101,13 @@ splitOnCommas xs = case span (/= ',') xs of
 
 -- Decoding RVM instructions
 
--- symbolRef :: Rib -> Int -> SIO Rib -- Debug
+-- symbolRef :: Rib -> Int -> IO Rib -- Debug
 symbolRef symbolTable n = read0 =<< listTail n symbolTable
 
--- listTail :: MonadIO m => Int -> Rib -> m Rib -- Debug
+-- listTail :: Int -> Rib -> IO Rib -- Debug
 listTail = \case 0 -> pure; n -> read1 >=> listTail (n-1)
 
--- decodeInstructions :: Rib -> String -> SIO Rib -- Debug
+-- decodeInstructions :: Rib -> String -> IO Rib -- Debug
 decodeInstructions symbolTable [] = pop
 decodeInstructions symbolTable (x:rest) = do
   -- First code tells us the operand
@@ -122,8 +121,8 @@ decodeInstructions symbolTable (x:rest) = do
   else do
     op <- if op==0 then push (RibInt 0) >> pure (op+1) else pure op
     (rest', n) <- if n==d then pure (RibInt <$> readInt rest 0) -- get_int(0)
-    else if n>=d then let (rest', i) = readInt rest (n-d-1) in (rest',) <$> symbolRef symbolTable i -- symbol_ref(get_int(n - d - 1))
-    else if op<3 then (rest,) <$> symbolRef symbolTable n -- symbol_ref(n)
+    else if n>=d then let (rest', i) = readInt rest (n-d-1) in pair rest' <$> symbolRef symbolTable i -- symbol_ref(get_int(n - d - 1))
+    else if op<3 then pair rest <$> symbolRef symbolTable n -- symbol_ref(n)
     else pure (rest, RibInt n)
     n <- if 4<op then do
       b <- pop >>= mkInstr n (RibInt 0)
@@ -137,10 +136,10 @@ decodeInstructions symbolTable (x:rest) = do
 -- Finds the op code from the encoded instruction
 findOp n op = let d = [20,30,0,10,11,4]!!op in if 2+d<n then findOp (n-(d+3)) (op+1) else (n,op,d)
 
--- setGlobal :: MonadIO m => Rib -> Rib -> m Rib -- Debug
+-- setGlobal :: Rib -> Rib -> IO Rib -- Debug
 setGlobal symbolTable val = read0 symbolTable >>= flip write0 val >> read1 symbolTable
 
--- eval :: Rib -> SIO () -- Debug
+-- eval :: Rib -> IO () -- Debug
 eval pc = do
   o <- read1 pc
   read0 pc >>= \case
@@ -207,13 +206,13 @@ eval pc = do
     _ -> pure ()
       -- traceShowM "halt"
 
--- getOpnd :: Rib -> SIO Rib -- Debug
+-- getOpnd :: Rib -> IO Rib -- Debug
 getOpnd (RibInt n) = getStack >>= listTail n
 getOpnd o = pure o
 
 -- Look at stack until it finds the continuation rib. The continuation rib is
 -- the first rib of the stack that doesn't have an Int as its tag.
--- getCont :: SIO Rib -- Debug
+-- getCont :: IO Rib -- Debug
 getCont = getStack >>= go
   where
   go = \case
@@ -223,8 +222,8 @@ getCont = getStack >>= go
         RibInt _ -> read1 r >>= go
         _ -> pure r
 
--- createState :: String -> IO (State, Rib) -- Debug
-createState programStr = do
+-- initialize :: String -> IO Rib -- Debug
+initialize programStr = do
   let (start, end) = span (/= ';') programStr; ((symbolTableStr, emptySymbolsCount), instructionsStr) = (readInt start 0, drop 1 end)
   -- Creating a partial state to decode the instructions.
   -- We just need a stack and the symbol table.
@@ -232,19 +231,18 @@ createState programStr = do
   symbolTable <- initialSymbolTable symbolTableStr emptySymbolsCount
 
   -- Decode instructions.
-  -- It would be nice if decoding wouldn't execute in SIO.
-  flip runReaderIO emptyState $ do
-    instr <- decodeInstructions symbolTable instructionsStr
+  -- It would be nice if decoding wouldn't execute in IO.
+  instr <- decodeInstructions symbolTable instructionsStr
 
-    -- Set globals
-    symbolTable' <- setGlobal symbolTable =<< mkProc (RibInt 0) symbolTable -- primitive 0
-    symbolTable'' <- setGlobal symbolTable' ribFalse
-    symbolTable''' <- setGlobal symbolTable'' ribTrue
-    setGlobal symbolTable''' ribNil
+  -- Set globals
+  symbolTable' <- setGlobal symbolTable =<< mkProc (RibInt 0) symbolTable -- primitive 0
+  symbolTable'' <- setGlobal symbolTable' ribFalse
+  symbolTable''' <- setGlobal symbolTable'' ribTrue
+  setGlobal symbolTable''' ribNil
 
-    -- Replace stack with [0,0,[5,0,0]]:
-    -- primordial continuation which executes halt instruction.
-    halt1 <- mkObj (RibInt 0) (RibInt 5) (RibInt 0)
-    halt2 <- mkObj halt1 (RibInt 0) (RibInt 0)
-    setStack halt2
-    pure instr
+  -- Replace stack with [0,0,[5,0,0]]:
+  -- primordial continuation which executes halt instruction.
+  halt1 <- mkObj (RibInt 0) (RibInt 5) (RibInt 0)
+  halt2 <- mkObj halt1 (RibInt 0) (RibInt 0)
+  setStack halt2
+  pure instr
