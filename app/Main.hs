@@ -5,6 +5,7 @@ import System.Environment
 
 import Utils
 import VM
+import System.IO
 
 -- inputStr :: String -- Debug
 inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that prints HELLO!
@@ -17,6 +18,7 @@ inputStr = ");'u?>vD?>vRD?>vRA?>vRA?>vR:?>vR=!(:lkm!':lkv6y" -- RVM code that pr
 -- Main that takes arguments.
 -- main :: IO () -- Debug
 main = do
+  hSetBuffering stdout NoBuffering
   args <- getArgs
   programStr <- case args of
     [file] -> readFile file
